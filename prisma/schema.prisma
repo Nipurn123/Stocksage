@@ -1,0 +1,211 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ===== Authentication Models =====
+model User {
+  id              String    @id @default(uuid())
+  name            String?
+  email           String    @unique
+  emailVerified   DateTime?
+  password        String
+  image           String?
+  role            String    @default("user")
+  businessName    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  accounts        Account[]
+  sessions        Session[]
+}
+
+model Account {
+  id                 String  @id @default(uuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ===== Business Models =====
+model Invoice {
+  id              String         @id @default(uuid())
+  invoiceNumber   String
+  date            String
+  dueDate         String
+  vendorName      String
+  vendorAddress   String
+  vendorEmail     String?
+  vendorPhone     String?
+  customerName    String
+  customerAddress String
+  totalAmount     Float
+  taxAmount       Float?
+  paymentTerms    String?
+  notes           String?
+  status          String         @default("pending")
+  items           InvoiceItem[]
+  confidenceScore Float?
+  // Stripe related fields
+  stripeInvoiceId String?       @unique
+  stripeCustomerId String?
+  paymentStatus   PaymentStatus @default(PENDING)
+  pdfUrl          String?
+  // Workflow/Compliance fields
+  isCompliant     Boolean       @default(false)
+  complianceNotes String?
+  // Timestamps
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  // Relations
+  payments        Payment[]
+  syncHistory     InventorySyncLog[]
+}
+
+model InvoiceItem {
+  id          String   @id @default(uuid())
+  description String
+  quantity    Float
+  unitPrice   Float
+  amount      Float
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  // Inventory sync fields
+  productSku  String?
+  syncedWith  String?  // Could be "Zoho" or other inventory system
+  syncedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// New models for Stripe and automated invoicing
+
+model Customer {
+  id              String   @id @default(uuid())
+  name            String
+  email           String   @unique
+  phone           String?
+  address         String?
+  stripeCustomerId String?  @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  payments        Payment[]
+}
+
+model Payment {
+  id              String       @id @default(uuid())
+  amount          Float
+  currency        String       @default("USD")
+  status          PaymentStatus @default(PENDING)
+  paymentMethod   String?
+  transactionId   String?      @unique // Stripe payment ID
+  invoiceId       String
+  invoice         Invoice      @relation(fields: [invoiceId], references: [id])
+  customerId      String?
+  customer        Customer?    @relation(fields: [customerId], references: [id])
+  paymentDate     DateTime
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model InventorySyncLog {
+  id              String   @id @default(uuid())
+  invoiceId       String
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id])
+  system          String   // e.g., "Zoho Inventory"
+  status          String   // "success", "failed"
+  message         String?
+  syncedAt        DateTime @default(now())
+}
+
+// Product model for inventory management
+model Product {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  sku             String?  @unique
+  category        String?
+  categoryId      String?
+  Category        Category? @relation(fields: [categoryId], references: [id])
+  price           Float
+  cost            Float?
+  currentStock    Int      @default(0)
+  minStockLevel   Int      @default(0)
+  image           String?
+  supplier        String?
+  userId          String?  // Owner of the product
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  inventoryLogs   InventoryLog[]
+}
+
+// Inventory transaction logs
+model InventoryLog {
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  quantity        Int
+  quantityChange  Int      // Add this field for stock changes
+  type            String   // "addition", "reduction", "adjustment", "in", "out"
+  reason          String?
+  notes           String?
+  reference       String?  // For tracking what operation caused this log
+  invoiceId       String?  // Optional reference to an invoice
+  createdAt       DateTime @default(now())
+  createdBy       String?  // User ID who made the change
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  userId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}

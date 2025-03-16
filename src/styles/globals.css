@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply text-gray-900 bg-gray-50 dark:text-white dark:bg-black transition-colors duration-200;
+  }
+  
+  h1 {
+    @apply text-3xl font-bold text-gray-900 dark:text-white sm:text-4xl;
+  }
+  
+  h2 {
+    @apply text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl;
+  }
+  
+  h3 {
+    @apply text-xl font-bold text-gray-900 dark:text-white sm:text-2xl;
+  }
+  
+  h4 {
+    @apply text-lg font-bold text-gray-900 dark:text-white;
+  }
+  
+  p {
+    @apply text-base text-gray-700 dark:text-gray-100;
+  }
+}
+
+@layer components {
+  .form-label {
+    @apply block text-sm font-medium text-gray-700 dark:text-white mb-1;
+  }
+  
+  .form-input {
+    @apply mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-dark-900 dark:text-white sm:text-sm;
+  }
+  
+  .form-error {
+    @apply mt-1 text-sm text-red-600 dark:text-red-400;
+  }
+  
+  .btn-primary {
+    @apply inline-flex justify-center rounded-md border border-transparent bg-primary-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-black;
+  }
+  
+  .btn-secondary {
+    @apply inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-dark-900 py-2 px-4 text-sm font-medium text-gray-700 dark:text-white shadow-sm hover:bg-gray-50 dark:hover:bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-black;
+  }
+  
+  .page-heading {
+    @apply mb-5 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between;
+  }
+  
+  .page-title {
+    @apply text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl;
+  }
+  
+  .section-title {
+    @apply text-xl font-semibold text-gray-900 dark:text-white;
+  }
+  
+  .card {
+    @apply bg-white dark:bg-black rounded-lg shadow p-6 overflow-hidden border border-gray-200 dark:border-gray-800;
+  }
+  
+  .data-table {
+    @apply min-w-full divide-y divide-gray-300 dark:divide-gray-700;
+  }
+  
+  .data-table-header {
+    @apply bg-gray-50 dark:bg-black;
+  }
+  
+  .data-table-header-cell {
+    @apply py-3.5 px-4 text-left text-sm font-semibold text-gray-900 dark:text-white;
+  }
+  
+  .data-table-body {
+    @apply divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-black;
+  }
+  
+  .data-table-row {
+    @apply hover:bg-gray-50 dark:hover:bg-dark-900;
+  }
+  
+  .data-table-cell {
+    @apply whitespace-nowrap py-4 px-4 text-sm text-gray-500 dark:text-white;
+  }
+} 
