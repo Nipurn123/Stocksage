@@ -3,10 +3,8 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
-// Force dynamic rendering for this API route
+// Vercel build specifically needs these
 export const dynamic = 'force-dynamic';
-
-// Set the runtime to edge for faster execution (optional but recommended)
 export const runtime = 'nodejs';
 
 // Add explicit cache control for Vercel
@@ -50,101 +48,113 @@ const DEMO_USERS = [
   }
 ];
 
-const handler = NextAuth({
-  providers: [
-    CredentialsProvider({
-      name: "Credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Email and password are required");
-        }
-
-        // Check if guest login
-        if (credentials.email === GUEST_EMAIL && credentials.password === GUEST_PASSWORD) {
-          return {
-            id: GUEST_USER.id,
-            name: GUEST_USER.name,
-            email: GUEST_USER.email,
-            role: GUEST_USER.role,
-          };
-        }
-
-        // Check for demo users first (works in both dev and prod)
-        const demoUser = DEMO_USERS.find(user => 
-          user.email === credentials.email && user.password === credentials.password
-        );
-        
-        if (demoUser) {
-          return {
-            id: demoUser.id,
-            name: demoUser.name,
-            email: demoUser.email,
-            role: demoUser.role,
-          };
-        }
-
-        try {
-          // For database users
-          const user = await prisma.user.findUnique({
-            where: { email: credentials.email },
-          });
-
-          // No user found with that email
-          if (!user) {
-            throw new Error("Invalid email or password");
+// Creating a handler function to avoid execution during build time
+function createHandler() {
+  return NextAuth({
+    providers: [
+      CredentialsProvider({
+        name: "Credentials",
+        credentials: {
+          email: { label: "Email", type: "email" },
+          password: { label: "Password", type: "password" },
+        },
+        async authorize(credentials) {
+          if (!credentials?.email || !credentials?.password) {
+            throw new Error("Email and password are required");
           }
 
-          // Check password
-          const passwordValid = await bcrypt.compare(
-            credentials.password,
-            user.password || ''
+          // Check if guest login
+          if (credentials.email === GUEST_EMAIL && credentials.password === GUEST_PASSWORD) {
+            return {
+              id: GUEST_USER.id,
+              name: GUEST_USER.name,
+              email: GUEST_USER.email,
+              role: GUEST_USER.role,
+            };
+          }
+
+          // Check for demo users first (works in both dev and prod)
+          const demoUser = DEMO_USERS.find(user => 
+            user.email === credentials.email && user.password === credentials.password
           );
-
-          if (!passwordValid) {
-            throw new Error("Invalid email or password");
+          
+          if (demoUser) {
+            return {
+              id: demoUser.id,
+              name: demoUser.name,
+              email: demoUser.email,
+              role: demoUser.role,
+            };
           }
 
-          return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-          };
-        } catch (error) {
-          throw new Error("Authentication failed");
-        }
-      },
-    }),
-  ],
-  pages: {
-    signIn: "/auth/login",
-    error: "/auth/login",
-  },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.role = user.role;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as string;
-      }
-      return session;
-    },
-  },
-  session: {
-    strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  },
-  secret: process.env.NEXTAUTH_SECRET || "stocksage-secret-key",
-});
+          try {
+            // For database users
+            const user = await prisma.user.findUnique({
+              where: { email: credentials.email },
+            });
 
-export { handler as GET, handler as POST }; 
+            // No user found with that email
+            if (!user) {
+              throw new Error("Invalid email or password");
+            }
+
+            // Check password
+            const passwordValid = await bcrypt.compare(
+              credentials.password,
+              user.password || ''
+            );
+
+            if (!passwordValid) {
+              throw new Error("Invalid email or password");
+            }
+
+            return {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              role: user.role,
+            };
+          } catch (error) {
+            throw new Error("Authentication failed");
+          }
+        },
+      }),
+    ],
+    pages: {
+      signIn: "/auth/login",
+      error: "/auth/login",
+    },
+    callbacks: {
+      async jwt({ token, user }) {
+        if (user) {
+          token.id = user.id;
+          token.role = user.role;
+        }
+        return token;
+      },
+      async session({ session, token }) {
+        if (token && session.user) {
+          session.user.id = token.id as string;
+          session.user.role = token.role as string;
+        }
+        return session;
+      },
+    },
+    session: {
+      strategy: "jwt",
+      maxAge: 30 * 24 * 60 * 60, // 30 days
+    },
+    secret: process.env.NEXTAUTH_SECRET || "stocksage-secret-key",
+  });
+}
+
+// Only create the handler when the functions are actually called
+export const GET = async (req: Request) => {
+  const handler = createHandler();
+  return handler.GET(req);
+};
+
+export const POST = async (req: Request) => {
+  const handler = createHandler();
+  return handler.POST(req);
+}; 
