@@ -1,36 +1,11 @@
 {
-  "version": 2,
   "buildCommand": "npm run build",
-  "installCommand": "npm install",
   "framework": "nextjs",
-  "functions": {
-    "api/auth/[...nextauth]": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
-  },
-  "headers": [
-    {
-      "source": "/api/auth/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        }
-      ]
-    }
-  ],
-  "env": {
-    "NEXTAUTH_URL": {
-      "development": "http://localhost:3000",
-      "preview": "https://stocksage-e0osexy9m-nipurns-projects-738e757b.vercel.app",
-      "production": "https://stocksage-e0osexy9m-nipurns-projects-738e757b.vercel.app"
-    }
-  },
   "build": {
     "env": {
-      "SKIP_ENV_VALIDATION": "1",
-      "SKIP_PRISMA_INIT": "1"
+      "NEXT_PUBLIC_VERCEL": "1",
+      "PRISMA_SKIP_DATABASE_CONNECT_AT_BUILD": "1",
+      "NEXTAUTH_URL": "https://stocksage-anrt3a3ss-nipurns-projects-738e757b.vercel.app"
     }
   }
 } 

@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
-// Detect if we're in a build context
-const isBuildProcess = process.env.VERCEL_ENV === 'preview' && process.env.NODE_ENV === 'production';
+// Explicitly check for Vercel build environment
+const isVercelBuild = process.env.VERCEL === '1' && process.env.CI === '1';
 
 // PrismaClient is attached to the `global` object in development to prevent
 // exhausting your database connection limit.
@@ -10,30 +10,34 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
-// Create a mock PrismaClient for build time to avoid connection errors
+// Mock PrismaClient for build environment
 class MockPrismaClient {
   constructor() {
+    console.log('Using mock Prisma client for Vercel build');
     return new Proxy({}, {
-      get: () => async () => {
-        console.log('Mock Prisma client used during build');
-        return null;
+      get: () => () => {
+        return new Proxy({}, {
+          get: () => () => {
+            console.log('Mock Prisma method called during build');
+            return Promise.resolve(null);
+          }
+        });
       }
-    });
+    }) as unknown as PrismaClient;
   }
 }
 
-// Use a custom client config for better connection handling
-const prismaClientSingleton = () => {
-  if (isBuildProcess) {
-    console.log('Using mock Prisma client for build');
+// Create client singleton
+const createPrismaClient = () => {
+  if (isVercelBuild) {
     return new MockPrismaClient() as unknown as PrismaClient;
   }
   
-  return new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  });
+  return new PrismaClient();
 };
 
-export const prisma = global.prisma || prismaClientSingleton();
+// Use existing global client or create a new one
+export const prisma = global.prisma || createPrismaClient();
 
+// Set global prisma in development to prevent multiple instances
 if (process.env.NODE_ENV !== 'production') global.prisma = prisma; 

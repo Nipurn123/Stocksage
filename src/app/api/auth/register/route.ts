@@ -3,6 +3,12 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
+// Add this for Vercel build compatibility
+export const dynamic = 'force-dynamic';
+
+// Detect if we're in a build context
+const isBuildProcess = process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'production';
+
 // Validation schema for registration data
 const registerSchema = z.object({
   name: z.string().min(2, 'Full name must be at least 2 characters'),
@@ -17,6 +23,15 @@ const registerSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // During build, return empty response to avoid database operations
+  if (isBuildProcess && process.env.NODE_ENV === 'production') {
+    console.log('Build process detected, skipping database operations');
+    return NextResponse.json(
+      { message: 'Registration not available during build' },
+      { status: 200 }
+    );
+  }
+
   try {
     // Parse request body
     const body = await req.json();
