@@ -12,6 +12,9 @@ export default function InvoiceScannerPage() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<InvoiceAnalysisResult | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [savedInvoiceId, setSavedInvoiceId] = useState<string | null>(null);
 
   const handleFileSelected = (selectedFile: File, preview: string) => {
     setFile(selectedFile);
@@ -77,12 +80,115 @@ export default function InvoiceScannerPage() {
     }
   };
 
-  const handleSaveToDatabase = () => {
-    toast.success('Invoice saved to database');
+  const handleSaveToDatabase = async () => {
+    if (!analysisResult || !analysisResult.success || !analysisResult.data) {
+      toast.error('No valid invoice data to save');
+      return;
+    }
+
+    // If already saved, show notification
+    if (analysisResult.invoiceId || savedInvoiceId) {
+      toast.success('Invoice already saved to database');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      toast.loading('Saving invoice to database...', {
+        id: 'save-invoice',
+      });
+
+      const response = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          invoice: analysisResult.data
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save invoice');
+      }
+
+      toast.success('Invoice saved to database!', {
+        id: 'save-invoice',
+      });
+      
+      // Update saved invoice ID
+      setSavedInvoiceId(result.id);
+      
+      // Update analysis result with invoice ID if it doesn't already have one
+      if (!analysisResult.invoiceId) {
+        setAnalysisResult({
+          ...analysisResult,
+          invoiceId: result.id
+        });
+      }
+    } catch (error) {
+      console.error('Error saving invoice:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save invoice', {
+        id: 'save-invoice',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleDownloadPDF = () => {
-    toast.success('Invoice PDF downloaded');
+  const handleDownloadPDF = async () => {
+    if (!analysisResult || !analysisResult.success || !analysisResult.data) {
+      toast.error('No valid invoice data to download');
+      return;
+    }
+
+    try {
+      setIsGeneratingPdf(true);
+      toast.loading('Generating invoice PDF...', {
+        id: 'download-pdf',
+      });
+
+      const response = await fetch('/api/invoices/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          invoice: analysisResult.data
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate PDF');
+      }
+
+      // Get the PDF as a blob
+      const pdfBlob = await response.blob();
+      
+      // Create a download link
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoice-${analysisResult.data.invoiceNumber || 'scanned'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success('PDF generated and downloaded!', {
+        id: 'download-pdf',
+      });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to generate PDF', {
+        id: 'download-pdf',
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   return (
@@ -162,17 +268,51 @@ export default function InvoiceScannerPage() {
           
           {analysisResult && !isAnalyzing && (
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <Button onClick={handleSaveToDatabase} className="shadow-md">
-                <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                </svg>
-                Save to Database
+              <Button 
+                onClick={handleSaveToDatabase} 
+                className="shadow-md"
+                disabled={isSaving || !!savedInvoiceId || !!analysisResult.invoiceId}
+              >
+                {isSaving ? (
+                  <>
+                    <div className="animate-spin h-4 w-4 mr-2 border-t-2 border-b-2 border-white rounded-full"></div>
+                    Saving...
+                  </>
+                ) : savedInvoiceId || analysisResult.invoiceId ? (
+                  <>
+                    <svg className="h-4 w-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Saved
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    Save to Database
+                  </>
+                )}
               </Button>
-              <Button onClick={handleDownloadPDF} variant="outline" className="shadow-md">
-                <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Download PDF
+              <Button 
+                onClick={handleDownloadPDF} 
+                variant="outline" 
+                className="shadow-md"
+                disabled={isGeneratingPdf}
+              >
+                {isGeneratingPdf ? (
+                  <>
+                    <div className="animate-spin h-4 w-4 mr-2 border-t-2 border-b-2 border-primary-600 rounded-full"></div>
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Download PDF
+                  </>
+                )}
               </Button>
             </div>
           )}

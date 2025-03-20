@@ -27,7 +27,7 @@ import {
   ArrowUpDown,
   Clock
 } from 'lucide-react';
-import { useSession } from 'next-auth/react';
+import { useUser } from '@clerk/nextjs';
 import { toast } from 'react-hot-toast';
 import type { Invoice } from '@/types/invoice';
 import { format } from 'date-fns';
@@ -35,8 +35,8 @@ import Link from 'next/link';
 
 export default function PendingInvoicesPage() {
   const router = useRouter();
-  const { data: session } = useSession();
-  const isGuest = session?.user?.role === 'guest';
+  const { user } = useUser();
+  const isGuest = user?.publicMetadata?.role === 'guest';
   
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);

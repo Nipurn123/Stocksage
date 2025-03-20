@@ -12,6 +12,8 @@ const nextConfig = {
   images: {
     domains: ['res.cloudinary.com', 'via.placeholder.com'],
   },
+  // Skip static generation for some routes
+  skipTrailingSlashRedirect: true,
   // Vercel-specific overrides
   env: {
     // Disable Prisma CLI during builds
@@ -20,7 +22,7 @@ const nextConfig = {
   },
   experimental: {
     // This ensures that Prisma Client isn't bundled in production
-    serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs']
+    serverExternalPackages: ['@prisma/client', 'bcryptjs']
   }
 };
 

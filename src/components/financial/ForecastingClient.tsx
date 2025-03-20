@@ -93,7 +93,7 @@ const formatCurrency = (value: number | null) => {
 };
 
 export default function ForecastingClient() {
-  const { data: session } = useSession();
+  const session = useSession();
   const [activeTab, setActiveTab] = useState('revenue');
   const [forecastPeriod, setForecastPeriod] = useState('6-month');
   const [showScenarios, setShowScenarios] = useState(true);

@@ -2,18 +2,19 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useUser } from '@clerk/nextjs';
 import AppLayout from '@/components/layout/AppLayout';
 import ProductForm from '@/components/inventory/ProductForm';
 import { Card, Button } from '@/components/ui';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { Product } from '@/types';
+import { toast } from 'react-hot-toast';
 
 export default function AddProductPage() {
   const router = useRouter();
-  const { data: session } = useSession();
-  const isGuest = session?.user?.role === 'guest';
+  const { user } = useUser();
+  const isGuest = user?.publicMetadata?.role === 'guest';
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { useUser } from '@clerk/nextjs';
 import PageHeader from '@/components/ui/PageHeader';
 import { Card, Button, Tabs, TabsList, TabsTrigger, TabsContent, Select } from '@/components/ui';
 import { 
@@ -110,8 +110,8 @@ const formatPercentage = (value: number) => {
 };
 
 export default function DashboardClient() {
-  const { data: session } = useSession();
-  const isGuest = session?.user?.role === 'guest';
+  const { user } = useUser();
+  const isGuest = user?.publicMetadata?.role === 'guest';
   const [selectedPeriod, setSelectedPeriod] = useState('yearly');
   const [focusTab, setFocusTab] = useState('overview');
   const [dateRange, setDateRange] = useState<'week' | 'month' | 'quarter' | 'year'>('month');

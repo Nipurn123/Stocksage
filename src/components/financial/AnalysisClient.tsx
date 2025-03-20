@@ -86,7 +86,7 @@ const formatCurrency = (value: number) => {
 };
 
 export default function AnalysisClient() {
-  const { data: session } = useSession();
+  const session = useSession();
   const [timePeriod, setTimePeriod] = useState('yearly');
   const [activeTab, setActiveTab] = useState('profit-loss');
   

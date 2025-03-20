@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { useUser, useAuth } from '@clerk/nextjs';
 import AppLayout from '@/components/layout/AppLayout';
 import { Card, Button, Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui';
 import Link from 'next/link';
@@ -9,8 +9,9 @@ import { ArrowUpRight, BarChart3, Package, ShoppingCart, AlertTriangle, PlusCirc
 import { DashboardStats } from '@/types';
 
 export default function DashboardPage() {
-  const { data: session } = useSession();
-  const isGuest = session?.user?.role === 'guest';
+  const { user } = useUser();
+  const { isSignedIn } = useAuth();
+  const isGuest = user?.publicMetadata.role === 'guest';
   const [dashboardData, setDashboardData] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -80,7 +81,7 @@ export default function DashboardPage() {
         <div className="bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-700 dark:to-purple-900 rounded-xl p-6 shadow-lg text-white">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
             <div>
-              <h1 className="text-3xl font-bold">Welcome back, {session?.user?.name?.split(' ')[0] || 'User'}</h1>
+              <h1 className="text-3xl font-bold">Welcome back, {user?.firstName || 'User'}</h1>
               <p className="mt-2 text-indigo-100">Here's what's happening with your business today.</p>
             </div>
             {isGuest && (

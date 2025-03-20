@@ -29,7 +29,7 @@ import {
   Clock,
   Mail
 } from 'lucide-react';
-import { useSession } from 'next-auth/react';
+import { useUser } from '@clerk/nextjs';
 import { toast } from 'react-hot-toast';
 import type { Invoice } from '@/types/invoice';
 import { format } from 'date-fns';
@@ -42,8 +42,8 @@ interface OverdueInvoice extends Invoice {
 
 export default function OverdueInvoicesPage() {
   const router = useRouter();
-  const { data: session } = useSession();
-  const isGuest = session?.user?.role === 'guest';
+  const { user } = useUser();
+  const isGuest = user?.publicMetadata?.role === 'guest';
   
   const [invoices, setInvoices] = useState<OverdueInvoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<OverdueInvoice[]>([]);

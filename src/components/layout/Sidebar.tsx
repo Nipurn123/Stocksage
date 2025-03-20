@@ -26,8 +26,9 @@ import {
   Layers
 } from 'lucide-react';
 import Button from '../ui/Button';
-import { useSession, signIn, signOut } from 'next-auth/react';
+import { useClerk, useAuth, useUser } from '@clerk/nextjs';
 import { cn } from '@/lib/utils';
+import { logoutAndRedirect } from '@/utils/auth-helpers';
 
 // Define types for navigation items
 interface SubItem {
@@ -88,12 +89,6 @@ const navItems: NavItem[] = [
     icon: <LineChart className="h-5 w-5" />,
     isParent: false,
   },
-  {
-    label: "Settings",
-    href: "/settings",
-    icon: <Settings className="h-5 w-5" />,
-    isParent: false,
-  },
 ];
 
 // Public navigation items for logged out users
@@ -135,10 +130,12 @@ interface SidebarProps {
 export default function Sidebar({ onToggle, isSidebarOpen, isMobile, onClose, isOpen }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { isSignedIn } = useAuth();
+  const { user } = useUser();
+  const { signOut } = useClerk();
   const [activeParent, setActiveParent] = useState<string | null>(null);
-  const isAuthenticated = status === 'authenticated';
-  const isGuest = session?.user?.role === 'guest';
+  const isAuthenticated = isSignedIn;
+  const isGuest = user?.publicMetadata.role === 'guest';
 
   const handleParentClick = (label: string) => {
     setActiveParent(prev => prev === label ? null : label);
@@ -153,19 +150,11 @@ export default function Sidebar({ onToggle, isSidebarOpen, isMobile, onClose, is
   };
 
   const handleGuestLogin = async () => {
-    const result = await signIn('credentials', {
-      redirect: false,
-      email: 'guest@stocksage.com',
-      password: 'guest123',
-    });
-
-    if (result?.ok) {
-      router.push('/dashboard');
-    }
+    router.push('/auth/login?guest=true');
   };
 
-  const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/' });
+  const handleSignOut = () => {
+    logoutAndRedirect('/');
   };
 
   // Determine which sidebar state to show
@@ -276,11 +265,11 @@ export default function Sidebar({ onToggle, isSidebarOpen, isMobile, onClose, is
             )}
             <div className="flex items-center mb-4">
               <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white ${isGuest ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' : 'bg-gradient-to-r from-indigo-500 to-indigo-600'}`}>
-                {session?.user?.name?.charAt(0) || 'U'}
+                {user?.firstName?.charAt(0) || 'U'}
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-gray-700 dark:text-white">
-                  {session?.user?.name || 'User'}
+                  {user?.firstName || 'User'}
                   {isGuest && (
                     <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200">
                       Guest
@@ -288,7 +277,7 @@ export default function Sidebar({ onToggle, isSidebarOpen, isMobile, onClose, is
                   )}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {session?.user?.email}
+                  {user?.emailAddresses[0]?.emailAddress}
                 </p>
               </div>
             </div>

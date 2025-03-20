@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { useUser } from '@clerk/nextjs';
 import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -147,8 +147,8 @@ const taxCategories = [
 ];
 
 export default function TaxRulesPage() {
-  const { data: session } = useSession();
-  const isGuest = session?.user?.role === 'guest';
+  const { user } = useUser();
+  const isGuest = user?.publicMetadata?.role === 'guest';
   
   const [taxRules, setTaxRules] = useState<TaxRule[]>(mockTaxRules);
   const [editingRule, setEditingRule] = useState<TaxRule | null>(null);

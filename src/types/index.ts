@@ -9,6 +9,41 @@ export interface User {
   updatedAt: string;
 }
 
+// Customer Types
+export interface Customer {
+  id: string;
+  fullName: string;
+  email: string;
+  phone?: string;
+  company?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  notes?: string;
+  userId: string;
+  totalSpent: number;
+  lastPurchaseDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerStats {
+  totalCustomers: number;
+  newCustomersThisMonth: number;
+  topCustomers: {
+    customer: Customer;
+    totalSpent: number;
+    orderCount: number;
+  }[];
+  recentCustomers: Customer[];
+  customersByMonth: {
+    month: string;
+    count: number;
+  }[];
+}
+
 // Product Types
 export interface Product {
   id: string;
@@ -79,6 +114,38 @@ export interface FinancialRecord {
   invoiceId?: string;
   userId: string;
   createdAt: string;
+}
+
+// Report Types
+export interface ReportData {
+  id: string;
+  name: string;
+  description?: string;
+  type: 'sales' | 'inventory' | 'financial' | 'customers' | 'custom';
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
+  format: 'pdf' | 'csv' | 'excel';
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  parameters?: Record<string, any>;
+  fileUrl?: string;
+}
+
+export interface ReportStats {
+  recentReports: ReportData[];
+  availableReportTypes: {
+    type: string;
+    name: string;
+    description: string;
+  }[];
+  totalReportsGenerated: number;
+  popularReports: {
+    type: string;
+    count: number;
+  }[];
 }
 
 // API Response Types

@@ -1,33 +1,45 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { getAuth } from '@clerk/nextjs/server';
 
-// This middleware ensures that the NEXTAUTH environment variables 
-// are properly handled in different environments
-export function middleware(request: NextRequest) {
-  // For auth routes, ensure we have the NEXTAUTH_URL and NEXTAUTH_SECRET
-  const requestForAuth = request.nextUrl.pathname.startsWith('/api/auth');
+// This example protects all routes including api/trpc routes
+// Please edit this to allow other routes to be public as needed.
+// See https://clerk.com/docs/references/nextjs/auth-middleware for more information about configuring your middleware
+const publicRoutes = [
+  "/",
+  "/sign-in*",
+  "/sign-up*",
+  "/api/webhook*",
+  "/terms",
+  "/privacy",
+  "/invoices*",
+  "/inventory*",
+  "/dashboard*",
+  "/reports*",
+  "/financial*",
+  "/customers*",
+  "/supply-chain*"
+];
+
+export async function middleware(request: NextRequest) {
+  const { userId } = await getAuth(request);
   
-  if (requestForAuth) {
-    // Add cache control headers for auth routes
-    const response = NextResponse.next();
-    response.headers.set('Cache-Control', 'no-store, max-age=0');
-    
-    // Log authentication attempt in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Auth request:', request.nextUrl.pathname);
-    }
-    
-    return response;
+  // Allow public routes
+  if (publicRoutes.some(route => {
+    const pattern = new RegExp(route.replace('*', '.*'));
+    return pattern.test(request.nextUrl.pathname);
+  })) {
+    return NextResponse.next();
   }
-  
+
+  // Require authentication for all other routes
+  if (!userId) {
+    return NextResponse.redirect(new URL('/sign-in', request.url));
+  }
+
   return NextResponse.next();
 }
 
-// Match specific paths
 export const config = {
-  matcher: [
-    // Only match API auth routes and auth pages
-    '/api/auth/:path*',
-    '/auth/:path*',
-  ],
+  matcher: ["/((?!.+\\.[\\w]+$|_next).*)", "/", "/(api|trpc)(.*)"],
 }; 

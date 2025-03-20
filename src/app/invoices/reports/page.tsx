@@ -26,14 +26,14 @@ import {
   AlertTriangle,
   CheckCircle
 } from 'lucide-react';
-import { useSession } from 'next-auth/react';
+import { useUser } from '@clerk/nextjs';
 import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
 
 export default function InvoiceReportsPage() {
   const router = useRouter();
-  const { data: session } = useSession();
-  const isGuest = session?.user?.role === 'guest';
+  const { user } = useUser();
+  const isGuest = user?.publicMetadata?.role === 'guest';
   
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date } | undefined>(undefined);

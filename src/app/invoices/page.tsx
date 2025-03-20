@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Card, Badge, Input, Select, Label, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Pagination } from '@/components/ui';
 import { Search, Plus, FileDown, Filter, ArrowDown, ArrowUp, ArrowUpDown, FileText, Clock, CheckCircle, AlertTriangle, RefreshCw, ScanLine, Pencil, DownloadCloud } from 'lucide-react';
-import { useSession } from 'next-auth/react';
+import { useUser } from '@clerk/nextjs';
 import { toast } from 'react-hot-toast';
 import type { Invoice } from '@/types/invoice';
 import { FilterDropdown } from '@/components/invoices';
@@ -182,8 +182,8 @@ const SAMPLE_INVOICES: EnhancedInvoice[] = [
 
 export default function InvoicesPage() {
   const router = useRouter();
-  const { data: session } = useSession();
-  const isGuest = session?.user?.role === 'guest';
+  const { user, isLoaded } = useUser();
+  const isGuest = user?.publicMetadata?.role === 'guest';
   
   const [invoices, setInvoices] = useState<EnhancedInvoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<EnhancedInvoice[]>([]);
@@ -196,35 +196,62 @@ export default function InvoicesPage() {
   const [sortField, setSortField] = useState<string>('createdAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [activeFilters, setActiveFilters] = useState<InvoiceFilters>({});
+  const [totalPages, setTotalPages] = useState(1);
   
   const itemsPerPage = 10;
   
+  // Define fetchInvoices function before using it
+  const fetchInvoices = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Fetch invoices from the API with pagination and filters
+      const url = new URL('/api/invoices', window.location.origin);
+      
+      // Add pagination parameters
+      url.searchParams.append('page', currentPage.toString());
+      url.searchParams.append('limit', itemsPerPage.toString());
+      
+      // Add status filter if not 'all'
+      if (statusFilter !== 'all') {
+        url.searchParams.append('status', statusFilter);
+      }
+      
+      const response = await fetch(url.toString());
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`);
+      }
+      const data = await response.json();
+      
+      if (data.success) {
+        setInvoices(data.data);
+        
+        // Update total pages if available
+        if (data.pagination) {
+          setTotalPages(data.pagination.pages);
+        }
+      } else {
+        throw new Error(data.error || 'Failed to fetch invoices');
+      }
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching invoices:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch invoices');
+      toast.error('Failed to load invoices. Please try again.');
+      // Fallback to sample data in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Using sample data as fallback');
+        setInvoices(SAMPLE_INVOICES);
+      }
+      setLoading(false);
+    }
+  };
+  
   // Fetch invoices
   useEffect(() => {
-    const fetchInvoices = async () => {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        // In a real app, this would be a fetch from your API
-        // const response = await fetch('/api/invoices');
-        // const data = await response.json();
-        
-        // For demo purposes, use sample data with small delay to simulate API
-        setTimeout(() => {
-          setInvoices(SAMPLE_INVOICES);
-          setLoading(false);
-        }, 500);
-      } catch (err) {
-        console.error('Error fetching invoices:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch invoices');
-        toast.error('Failed to load invoices. Please try again.');
-        setLoading(false);
-      }
-    };
-
     fetchInvoices();
-  }, []);
+  }, [currentPage, statusFilter]); // Fetch when page or status changes
 
   // Apply filters and search
   useEffect(() => {
@@ -334,8 +361,6 @@ export default function InvoicesPage() {
     currentPage * itemsPerPage
   );
   
-  const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
-  
   // Handle sort changes
   const handleSort = (field: string) => {
     setSortDirection(sortField === field && sortDirection === 'asc' ? 'desc' : 'asc');
@@ -369,12 +394,19 @@ export default function InvoicesPage() {
   
   // Refresh data
   const handleRefresh = () => {
-    setLoading(true);
-    // In a real app, this would refetch from API
-    setTimeout(() => {
-      setLoading(false);
-      toast.success('Invoices refreshed');
-    }, 500);
+    toast.loading('Refreshing invoices...', { id: 'refresh-invoices' });
+    fetchInvoices().then(() => {
+      toast.success('Invoices refreshed!', { id: 'refresh-invoices' });
+    }).catch((error: Error) => {
+      toast.error('Failed to refresh invoices', { id: 'refresh-invoices' });
+    });
+  };
+  
+  // Handle pagination
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   
   // Sort indicator component
@@ -781,15 +813,42 @@ export default function InvoicesPage() {
             </div>
             
             {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-center mt-6">
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={setCurrentPage}
-                />
+            <div className="mt-6 flex items-center justify-between">
+              <p className="text-sm text-gray-700 dark:text-gray-400">
+                Showing <span className="font-medium">{Math.min((currentPage - 1) * itemsPerPage + 1, invoices.length)}</span> to{' '}
+                <span className="font-medium">{Math.min(currentPage * itemsPerPage, invoices.length)}</span> of{' '}
+                <span className="font-medium">{invoices.length}</span> results
+              </p>
+              <div className="flex space-x-1">
+                <Button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1 || loading}
+                  size="sm"
+                  variant="outline"
+                >
+                  Previous
+                </Button>
+                {[...Array(totalPages || 1)].map((_, i) => (
+                  <Button
+                    key={i}
+                    onClick={() => handlePageChange(i + 1)}
+                    size="sm"
+                    variant={currentPage === i + 1 ? 'default' : 'outline'}
+                    disabled={loading}
+                  >
+                    {i + 1}
+                  </Button>
+                ))}
+                <Button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === (totalPages || 1) || loading}
+                  size="sm"
+                  variant="outline"
+                >
+                  Next
+                </Button>
               </div>
-            )}
+            </div>
           </>
         )}
       </Card>

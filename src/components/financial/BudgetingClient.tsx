@@ -85,8 +85,10 @@ const formatCurrency = (value: number) => {
 };
 
 export default function BudgetingClient() {
-  const { data: session } = useSession();
-  const [activeTab, setActiveTab] = useState('overview');
+  const session = useSession();
+  const [activeTab, setActiveTab] = useState('department');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState('cards');
   const [fiscalYear, setFiscalYear] = useState('2024');
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   

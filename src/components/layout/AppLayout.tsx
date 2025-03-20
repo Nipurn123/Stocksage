@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';
-import { useSession } from 'next-auth/react';
+import { useUser, useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import Link from 'next/link';
@@ -14,10 +14,11 @@ interface AppLayoutProps {
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const { data: session, status } = useSession();
+  const { user, isLoaded: userLoaded } = useUser();
+  const { isSignedIn } = useAuth();
   const router = useRouter();
-  const isAuthenticated = status === 'authenticated';
-  const isGuest = session?.user?.role === 'guest';
+  const isAuthenticated = isSignedIn;
+  const isGuest = user?.publicMetadata.role === 'guest';
 
   // Add responsive handling
   useEffect(() => {
@@ -36,7 +37,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   }, []);
 
   // Show loading state while checking auth
-  if (status === 'loading') {
+  if (!userLoaded) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-black">
         <div className="flex flex-col items-center">

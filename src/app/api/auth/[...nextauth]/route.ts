@@ -29,7 +29,10 @@ const DEMO_USERS = [
   }
 ];
 
-// Simplified handler that doesn't rely on database during build
+// Get environment variables and ensure defaults for development
+const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || "d41d8cd98f00b204e9800998ecf8427e4b6de62a859c9a0ae9af5c86c7ad1b89";
+
+// Create the NextAuth handler
 const handler = NextAuth({
   providers: [
     CredentialsProvider({
@@ -86,7 +89,19 @@ const handler = NextAuth({
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  secret: process.env.NEXTAUTH_SECRET || "stocksage-secret-key",
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
+  secret: NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV !== "production",
 });
 
 export { handler as GET, handler as POST }; 

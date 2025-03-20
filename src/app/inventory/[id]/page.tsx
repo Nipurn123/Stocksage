@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useUser } from '@clerk/nextjs';
 import AppLayout from '@/components/layout/AppLayout';
 import { Card, Button, Badge, Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui';
 import { 
@@ -16,8 +16,8 @@ import StockAdjustmentForm from '@/components/inventory/StockAdjustmentForm';
 export default function ProductDetailPage() {
   const router = useRouter();
   const { id } = useParams();
-  const { data: session } = useSession();
-  const isGuest = session?.user?.role === 'guest';
+  const { user } = useUser();
+  const isGuest = user?.publicMetadata?.role === 'guest';
   
   const [product, setProduct] = useState<Product & { inventoryLogs?: InventoryLog[] }>();
   const [isLoading, setIsLoading] = useState(true);

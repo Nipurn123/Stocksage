@@ -1,6 +1,77 @@
 # StockSage
 
-StockSage is a comprehensive inventory and invoice management system built with Next.js, featuring a sleek dark mode UI, advanced AI-powered invoice scanning capabilities, and seamless invoicing with Stripe integration.
+StockSage is an inventory and invoice management system built with Next.js.
+
+## Deployment Instructions
+
+### Environment Variables
+
+This project requires the following environment variables:
+
+#### Clerk Authentication
+```
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_******
+CLERK_SECRET_KEY=sk_test_******
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/auth/login
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/auth/register
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
+NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
+```
+
+#### NextAuth Configuration
+```
+NEXTAUTH_SECRET=your-secure-secret-key
+NEXTAUTH_URL=https://your-deployment-url.vercel.app
+NEXTAUTH_DEBUG=false
+```
+
+#### Stripe Integration (if using payment features)
+```
+STRIPE_SECRET_KEY=sk_test_******
+STRIPE_PUBLISHABLE_KEY=pk_test_******
+STRIPE_WEBHOOK_SECRET=whsec_******
+```
+
+### Vercel Deployment
+
+1. Create a new project on Vercel
+2. Connect your repository
+3. Add the required environment variables in the project settings
+4. Deploy
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run the development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm start
+```
+
+## Features
+
+- Inventory management
+- Invoice generation and tracking
+- Customer management
+- Financial reporting
+- Integration with payment processors
+
+## Technologies
+
+- Next.js 14
+- React
+- TypeScript
+- Tailwind CSS
+- Clerk Authentication
+- NextAuth.js
+- Prisma ORM
 
 ## 🌟 Features
 
@@ -58,6 +129,7 @@ StockSage is a comprehensive inventory and invoice management system built with 
    # NextAuth
    NEXTAUTH_URL=http://localhost:3000
    NEXTAUTH_SECRET=your_secret_here
+   NEXTAUTH_DEBUG=false
    
    # For production use of Gemini Vision API
    GEMINI_API_KEY=your_gemini_api_key_here
@@ -248,4 +320,4 @@ npm start
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.

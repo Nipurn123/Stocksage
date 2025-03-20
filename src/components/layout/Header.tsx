@@ -1,18 +1,20 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useSession, signOut } from 'next-auth/react';
+import { useClerk, useUser } from '@clerk/nextjs';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import { Bell, Settings, LogOut, HelpCircle, User, ChevronDown } from 'lucide-react';
+import { logoutAndRedirect } from '@/utils/auth-helpers';
 
 interface HeaderProps {
   toggleSidebar: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
-  const { data: session } = useSession();
-  const isGuest = session?.user?.role === 'guest';
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const isGuest = user?.publicMetadata.role === 'guest';
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   
   const toggleProfileMenu = () => {
@@ -66,11 +68,11 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           >
             <span className="sr-only">Open user menu</span>
             <div className={`h-8 w-8 rounded-full flex items-center justify-center text-white shadow-md ${isGuest ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' : 'bg-gradient-to-r from-indigo-600 to-indigo-700'}`}>
-              {session?.user?.name?.charAt(0) || 'U'}
+              {user?.firstName?.charAt(0) || 'U'}
             </div>
             <div className="hidden md:block">
               <div className="flex items-center">
-                <p className="text-sm font-medium text-gray-700 dark:text-white">{session?.user?.name || 'User'}</p>
+                <p className="text-sm font-medium text-gray-700 dark:text-white">{user?.firstName || 'User'}</p>
                 {isGuest && (
                   <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200">
                     Guest
@@ -92,7 +94,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                   Signed in as
                 </p>
                 <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                  {session?.user?.email || 'user@example.com'}
+                  {user?.emailAddresses[0]?.emailAddress || 'user@example.com'}
                 </p>
               </div>
               <div className="py-1">
@@ -120,7 +122,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
               </div>
               <div className="py-1">
                 <button
-                  onClick={() => signOut({ callbackUrl: '/' })}
+                  onClick={() => logoutAndRedirect('/')}
                   className="flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   <LogOut className="h-4 w-4 mr-3 text-gray-500 dark:text-gray-400" />

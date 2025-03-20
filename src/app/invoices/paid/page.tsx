@@ -27,7 +27,7 @@ import {
   ArrowUpDown,
   CheckCircle
 } from 'lucide-react';
-import { useSession } from 'next-auth/react';
+import { useUser } from '@clerk/nextjs';
 import { toast } from 'react-hot-toast';
 import type { Invoice } from '@/types/invoice';
 import { format } from 'date-fns';
@@ -41,8 +41,8 @@ interface PaidInvoice extends Invoice {
 
 export default function PaidInvoicesPage() {
   const router = useRouter();
-  const { data: session } = useSession();
-  const isGuest = session?.user?.role === 'guest';
+  const { user } = useUser();
+  const isGuest = user?.publicMetadata?.role === 'guest';
   
   const [invoices, setInvoices] = useState<PaidInvoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<PaidInvoice[]>([]);
