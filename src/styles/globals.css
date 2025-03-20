@@ -88,4 +88,20 @@
   .data-table-cell {
     @apply whitespace-nowrap py-4 px-4 text-sm text-gray-500 dark:text-white;
   }
+}
+
+/* Hydration fix styles */
+html[data-hydrating="true"] * {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Add a small delay before showing dynamic content to prevent flashes */
+.delayed-visibility {
+  opacity: 0;
+  transition: opacity 0.2s ease-in;
+}
+
+html:not([data-hydrating="true"]) .delayed-visibility {
+  opacity: 1;
 } 

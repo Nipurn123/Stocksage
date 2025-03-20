@@ -19,10 +19,6 @@ const nextConfig = {
     // Disable Prisma CLI during builds
     PRISMA_HIDE_UPDATE_MESSAGE: '1',
     PRISMA_CLI_QUERY_ENGINE_TYPE: 'binary',
-  },
-  experimental: {
-    // This ensures that Prisma Client isn't bundled in production
-    serverExternalPackages: ['@prisma/client', 'bcryptjs']
   }
 };
 

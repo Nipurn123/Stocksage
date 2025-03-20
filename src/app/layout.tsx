@@ -6,6 +6,8 @@ import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from '@/lib/ThemeProvider';
 import ClerkErrorProvider from '@/providers/ClerkErrorProvider';
 import NextAuthProvider from '@/lib/auth/Provider';
+import HydrationManager from '@/components/HydrationManager';
+import Script from 'next/script';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -30,16 +32,36 @@ export const metadata: Metadata = {
   description: 'Streamline your inventory management and invoicing with StockSage.',
 };
 
+// Hydration fix script
+const hydrationScript = `
+(function() {
+  // This script runs before hydration
+  document.documentElement.setAttribute('data-hydrating', 'true');
+  
+  // Listen for hydration completion
+  window.addEventListener('load', function() {
+    // Delay slightly to ensure React is fully hydrated
+    setTimeout(function() {
+      document.documentElement.removeAttribute('data-hydrating');
+    }, 100);
+  });
+})();
+`;
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   // If Clerk env vars are invalid during static generation, provide minimal layout
-  if (process.env.NODE_ENV === 'production' && !hasValidEnv()) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const shouldUseMinimalLayout = isProduction && !hasValidEnv();
+  
+  if (shouldUseMinimalLayout) {
     return (
       <html lang="en" className={`${inter.variable} h-full`}>
         <body className="h-full bg-gray-50 dark:bg-black dark:text-white">
+          <Script id="hydration-fix" strategy="beforeInteractive">{hydrationScript}</Script>
           <ThemeProvider>
             <NextAuthProvider>
               {children}
@@ -54,6 +76,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} h-full`}>
       <body className="h-full bg-gray-50 dark:bg-black dark:text-white">
+        <Script id="hydration-fix" strategy="beforeInteractive">{hydrationScript}</Script>
         <ThemeProvider>
           <ClerkProvider 
             publishableKey={publishableKey}
@@ -65,6 +88,7 @@ export default function RootLayout({
           >
             <ClerkErrorProvider>
               <NextAuthProvider>
+                <HydrationManager />
                 {children}
               </NextAuthProvider>
             </ClerkErrorProvider>

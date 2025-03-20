@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,8 +9,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { Button, Input } from '@/components/ui';
-import { Divider } from '@/components/ui/Divider';
 import { FcGoogle } from 'react-icons/fc';
+import SafeHydration from '@/components/SafeHydration';
 
 // Schema for email-only first factor
 const emailSchema = z.object({
@@ -25,7 +25,24 @@ const otpSchema = z.object({
 type EmailFormValues = z.infer<typeof emailSchema>;
 type OtpFormValues = z.infer<typeof otpSchema>;
 
-export default function LoginPage() {
+// Loading component for Suspense
+function LoginLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600 mx-auto mb-4"></div>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Loading
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">
+          Please wait...
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function LoginPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGuestLoading, setIsGuestLoading] = useState(false);
   const [isSocialLoading, setIsSocialLoading] = useState(false);
@@ -257,7 +274,8 @@ export default function LoginPage() {
       setIsGuestLoading(false);
     }
   };
-
+  
+  // Handle social sign-in
   const handleSocialSignIn = async (strategy: "oauth_google") => {
     setIsSocialLoading(true);
     
@@ -290,6 +308,13 @@ export default function LoginPage() {
     }
   };
 
+  // Wrap dynamic content that might cause hydration mismatch
+  const renderRedirectUrl = () => (
+    <SafeHydration fallback={<span>/dashboard</span>}>
+      <span>{redirectUrl}</span>
+    </SafeHydration>
+  );
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -307,8 +332,7 @@ export default function LoginPage() {
               <Button 
                 type="button" 
                 variant="outline" 
-                fullWidth 
-                className="flex items-center justify-center"
+                className="w-full flex items-center justify-center"
                 onClick={() => handleSocialSignIn("oauth_google")}
                 isLoading={isSocialLoading}
               >
@@ -413,5 +437,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginLoading />}>
+      <LoginPageContent />
+    </Suspense>
   );
 } 

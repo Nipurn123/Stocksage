@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSignIn, useSignUp } from '@clerk/nextjs';
 import toast from 'react-hot-toast';
 
-export default function SSOCallback() {
+function SSOCallbackContent() {
   const { isLoaded: isSignInLoaded, signIn, setActive } = useSignIn();
   const { isLoaded: isSignUpLoaded, signUp } = useSignUp();
   const router = useRouter();
@@ -68,5 +68,27 @@ export default function SSOCallback() {
         </p>
       </div>
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function SSOCallbackLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600 mx-auto mb-4"></div>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Loading...
+        </h1>
+      </div>
+    </div>
+  );
+}
+
+export default function SSOCallback() {
+  return (
+    <Suspense fallback={<SSOCallbackLoading />}>
+      <SSOCallbackContent />
+    </Suspense>
   );
 } 
