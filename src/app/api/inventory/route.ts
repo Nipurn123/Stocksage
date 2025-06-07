@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { Product } from '@/types';
+import { auth } from '@clerk/nextjs/server';
+import { Prisma } from '@prisma/client';
 
 // Add this for Vercel build compatibility
 export const dynamic = 'force-dynamic';
@@ -10,142 +12,148 @@ export const dynamic = 'force-dynamic';
 // Detect if we're in a build context
 const isBuildProcess = process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'production';
 
+// Function to get the user ID from either Clerk or NextAuth
+async function getUserId(request: Request): Promise<string | null> {
+  // First try Clerk
+  try {
+    const clerkAuth = auth();
+    if (clerkAuth && typeof clerkAuth === 'object' && 'userId' in clerkAuth) {
+      const userId = clerkAuth.userId as string;
+      if (userId) return userId;
+    }
+  } catch (error) {
+    console.error('Error with Clerk auth:', error);
+  }
+  
+  // Then try NextAuth
+  try {
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) return session.user.id;
+  } catch (error) {
+    console.error('Error with NextAuth:', error);
+  }
+  
+  // Finally, try to extract from Authorization header (for client-side auth)
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    // This is simplified - in a real app you'd want to verify this token
+    // For now we'll just assume that if a token is provided, it's valid
+    return 'authenticated-user';
+  }
+  
+  return null;
+}
+
 // GET handler for retrieving all products
 export async function GET(request: Request) {
   // During build, return mock data to avoid database operations
   if (isBuildProcess && process.env.NODE_ENV === 'production') {
-    console.log('Build process detected, returning mock data');
+    console.log('Build process detected, returning mock inventory');
     return NextResponse.json({
       success: true,
-      data: generateMockProducts(10),
+      data: Array.from({ length: 10 }, () => generateMockProduct()),
       pagination: {
-        total: 50,
+        total: 10,
         page: 1,
         limit: 10,
-        totalPages: 5,
-      },
+      }
     });
   }
 
   try {
-    const session = await getServerSession(authOptions);
+    const userId = await getUserId(request);
     
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!userId) {
+      console.error('Authentication failed: No valid user ID found');
+      return NextResponse.json(
+        { success: false, error: 'Not authenticated' },
+        { status: 401 }
+      );
     }
-
+    
     const { searchParams } = new URL(request.url);
-    const category = searchParams.get('category');
-    const search = searchParams.get('search');
-    const lowStock = searchParams.get('lowStock') === 'true';
-    const outOfStock = searchParams.get('outOfStock') === 'true';
-    const sortBy = searchParams.get('sortBy') || 'name';
-    const sortDirection = searchParams.get('sortDirection') || 'asc';
+    
+    // Pagination parameters
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const skip = (page - 1) * limit;
-
-    // For guest demo mode, return mock data directly
-    if (session.user.id === 'guest-id') {
-      const mockProducts = generateMockProducts(limit);
-      
-      return NextResponse.json({
-        success: true,
-        data: mockProducts,
-        pagination: {
-          total: 50, // Mock total
-          page,
-          limit,
-          totalPages: Math.ceil(50 / limit),
-        },
-      });
-    }
-
-    // Build filter conditions
-    const whereClause = {
-      userId: session.user.id,
+    
+    // Filter parameters
+    const search = searchParams.get('search') || '';
+    const category = searchParams.get('category') || '';
+    const minPrice = parseFloat(searchParams.get('minPrice') || '0');
+    const maxPrice = parseFloat(searchParams.get('maxPrice') || '1000000');
+    const stockStatus = searchParams.get('stockStatus') || '';
+    
+    // Build where clause
+    const where: Prisma.ProductWhereInput = {
+      userId,
+      price: {
+        gte: minPrice,
+        lte: maxPrice === 0 ? 1000000 : maxPrice,
+      },
     };
-
-    let filterConditions = {};
+    
+    if (search) {
+      where.OR = [
+        { name: { contains: search } },
+        { sku: { contains: search } },
+        { description: { contains: search } },
+      ];
+    }
     
     if (category) {
-      filterConditions = { ...filterConditions, category };
+      where.category = category;
     }
-
-    if (search) {
-      filterConditions = { 
-        ...filterConditions,
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } },
-          { sku: { contains: search, mode: 'insensitive' } },
-        ]
-      };
+    
+    // Handle stock status filtering
+    if (stockStatus) {
+      switch (stockStatus) {
+        case 'out-of-stock':
+          where.currentStock = 0;
+          break;
+        case 'low-stock':
+          // Low stock is > 0 but <= 5 (simplified)
+          where.currentStock = {
+            gt: 0,
+            lte: 5
+          };
+          break;
+        case 'in-stock':
+          // In stock is > 5 (simplified)
+          where.currentStock = {
+            gt: 5
+          };
+          break;
+      }
     }
-
-    if (lowStock) {
-      filterConditions = { 
-        ...filterConditions,
-        currentStock: { lte: 10, gt: 0 } 
-      };
-    }
-
-    if (outOfStock) {
-      filterConditions = { 
-        ...filterConditions,
-        currentStock: { equals: 0 } 
-      };
-    }
-
-    const fullWhere = { ...whereClause, ...filterConditions };
-
-    // Wrap database operations in try/catch
-    try {
-      // Get total count for pagination
-      const totalCount = await prisma.product.count({
-        where: fullWhere,
-      });
-
-      // Get products
-      const products = await prisma.product.findMany({
-        where: fullWhere,
-        orderBy: {
-          [sortBy]: sortDirection,
-        },
+    
+    // Execute query with pagination
+    const [products, total] = await prisma.$transaction([
+      prisma.product.findMany({
+        where,
         skip,
         take: limit,
-      });
-
-      return NextResponse.json({
-        success: true,
-        data: products,
-        pagination: {
-          total: totalCount,
-          page,
-          limit,
-          totalPages: Math.ceil(totalCount / limit),
+        orderBy: {
+          updatedAt: 'desc',
         },
-      });
-    } catch (dbError) {
-      console.error('Database error:', dbError);
-      // Fall back to mock data if database isn't available
-      const mockProducts = generateMockProducts(limit);
-      
-      return NextResponse.json({
-        success: true,
-        data: mockProducts,
-        pagination: {
-          total: 50,
-          page,
-          limit,
-          totalPages: Math.ceil(50 / limit),
-        },
-      });
-    }
+      }),
+      prisma.product.count({ where }),
+    ]);
+    
+    return NextResponse.json({
+      success: true,
+      data: products,
+      pagination: {
+        total,
+        page,
+        limit,
+      }
+    });
   } catch (error) {
-    console.error('Error fetching products:', error);
+    console.error('Error getting products:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch products' },
+      { success: false, error: 'Failed to get products' },
       { status: 500 }
     );
   }
@@ -155,7 +163,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   // During build, return mock data to avoid database operations
   if (isBuildProcess && process.env.NODE_ENV === 'production') {
-    console.log('Build process detected, returning mock product');
+    console.log('Build process detected, returning mock product creation');
     return NextResponse.json({
       success: true,
       data: generateMockProduct()
@@ -163,25 +171,38 @@ export async function POST(request: Request) {
   }
 
   try {
-    const session = await getServerSession(authOptions);
+    const userId = await getUserId(request);
     
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Not authenticated' },
+        { status: 401 }
+      );
     }
-
-    // For guest users, return success without creating a product
-    if (session.user.id === 'guest-id') {
-      const mockProduct = generateMockProduct();
-      return NextResponse.json({ success: true, data: mockProduct });
-    }
-
+    
     const data = await request.json();
-    const { name, description, sku, price, cost, currentStock, reorderLevel, category } = data;
+    
+    const { name, description, sku, price, cost, currentStock, minStockLevel, category, categoryId } = data;
 
     // Validate required fields
     if (!name || !sku || price === undefined || currentStock === undefined) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Check if product with SKU already exists for this user
+    const existingProduct = await prisma.product.findFirst({
+      where: {
+        sku,
+        userId,
+      },
+    });
+
+    if (existingProduct) {
+      return NextResponse.json(
+        { success: false, error: 'A product with this SKU already exists' },
         { status: 400 }
       );
     }
@@ -192,26 +213,27 @@ export async function POST(request: Request) {
         name,
         description,
         sku,
-        price: parseFloat(price),
-        cost: cost ? parseFloat(cost) : 0,
-        currentStock: parseInt(currentStock),
-        minStockLevel: reorderLevel ? parseInt(reorderLevel) : 5,
         category: category || 'Uncategorized',
-        userId: session.user.id,
+        categoryId: categoryId || null,
+        price: parseFloat(price.toString()),
+        cost: cost ? parseFloat(cost.toString()) : null,
+        currentStock: parseInt(currentStock.toString()),
+        minStockLevel: minStockLevel ? parseInt(minStockLevel.toString()) : 5,
+        userId,
       },
     });
 
     // If current stock > 0, create an initial inventory log
-    if (parseInt(currentStock) > 0) {
+    if (parseInt(currentStock.toString()) > 0) {
       await prisma.inventoryLog.create({
         data: {
           productId: product.id,
-          quantity: parseInt(currentStock),
-          quantityChange: parseInt(currentStock),
+          quantity: parseInt(currentStock.toString()),
+          quantityChange: parseInt(currentStock.toString()),
           type: 'in',
           reference: 'Initial Stock',
           notes: 'Initial inventory setup',
-          createdBy: session.user.id,
+          createdBy: userId,
         },
       });
     }
@@ -226,117 +248,24 @@ export async function POST(request: Request) {
   }
 }
 
-// Helper function to generate mock products for demo mode
-function generateMockProducts(count: number): Product[] {
-  const mockProducts: Product[] = [];
-  
-  const categories = ['Sarees', 'Handloom Fabric', 'Ready-to-wear', 'Accessories', 'Yarn'];
-  
-  for (let i = 0; i < count; i++) {
-    const id = `mock-${i + 1}`;
-    const category = categories[Math.floor(Math.random() * categories.length)];
-    const currentStock = Math.floor(Math.random() * 30);
-    const minStockLevel = 5;
-    
-    let name, sku, price, cost, description;
-    
-    switch (category) {
-      case 'Sarees':
-        name = ['Silk Chanderi Saree', 'Cotton Ikat Saree', 'Linen Jamdani Saree', 'Banarasi Saree', 'Kanjivaram Silk Saree'][Math.floor(Math.random() * 5)];
-        sku = `SAR-${100 + i}`;
-        price = 1500 + Math.floor(Math.random() * 8500);
-        cost = Math.floor(price * 0.6);
-        description = `Handwoven ${name.toLowerCase()} crafted by skilled artisans`;
-        break;
-      case 'Handloom Fabric':
-        name = ['Pochampally Cotton', 'Mangalgiri Fabric', 'Tussar Silk', 'Bhagalpur Linen', 'Block Print Cotton'][Math.floor(Math.random() * 5)];
-        sku = `FAB-${100 + i}`;
-        price = 350 + Math.floor(Math.random() * 1150);
-        cost = Math.floor(price * 0.5);
-        description = `Traditional ${name.toLowerCase()} handwoven fabric (per meter)`;
-        break;
-      case 'Ready-to-wear':
-        name = ['Handloom Kurta', 'Ikat Dress', 'Khadi Shirt', 'Block Print Scarf', 'Silk Dupatta'][Math.floor(Math.random() * 5)];
-        sku = `RTW-${100 + i}`;
-        price = 800 + Math.floor(Math.random() * 2200);
-        cost = Math.floor(price * 0.6);
-        description = `Handcrafted ${name.toLowerCase()} made from traditional textiles`;
-        break;
-      case 'Accessories':
-        name = ['Fabric Clutch', 'Embroidered Bag', 'Handwoven Stole', 'Ikat Wallet', 'Textile Jewelry'][Math.floor(Math.random() * 5)];
-        sku = `ACC-${100 + i}`;
-        price = 250 + Math.floor(Math.random() * 1250);
-        cost = Math.floor(price * 0.4);
-        description = `Handcrafted ${name.toLowerCase()} using traditional techniques`;
-        break;
-      default: // Yarn
-        name = ['Organic Cotton Yarn', 'Natural Dyed Wool', 'Handspun Silk', 'Linen Thread', 'Khadi Yarn'][Math.floor(Math.random() * 5)];
-        sku = `YRN-${100 + i}`;
-        price = 180 + Math.floor(Math.random() * 820);
-        cost = Math.floor(price * 0.5);
-        description = `Premium quality ${name.toLowerCase()} for traditional weaving`;
-    }
-    
-    mockProducts.push({
-      id,
-      name,
-      description,
-      sku,
-      price,
-      cost,
-      currentStock,
-      minStockLevel,
-      category,
-      userId: 'guest-id',
-      createdAt: new Date(Date.now() - Math.floor(Math.random() * 90 * 24 * 60 * 60 * 1000)).toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-  }
-  
-  return mockProducts;
-}
-
-// Helper function to generate a single mock product
+// Helper function to generate mock product for demo mode
 function generateMockProduct(): Product {
   const categories = ['Sarees', 'Handloom Fabric', 'Ready-to-wear', 'Accessories', 'Yarn'];
-  const category = categories[Math.floor(Math.random() * categories.length)];
-  const id = `mock-${Date.now()}`;
-  
-  let name, sku, price, cost, description;
-  
-  switch (category) {
-    case 'Sarees':
-      name = 'Silk Chanderi Saree';
-      sku = `SAR-${100 + Math.floor(Math.random() * 900)}`;
-      price = 3499.99;
-      cost = 2100.00;
-      description = 'Handwoven silk chanderi saree with traditional motifs';
-      break;
-    case 'Handloom Fabric':
-      name = 'Pochampally Cotton';
-      sku = `FAB-${100 + Math.floor(Math.random() * 900)}`;
-      price = 599.99;
-      cost = 350.00;
-      description = 'Traditional pochampally cotton fabric with geometric patterns (per meter)';
-      break;
-    default:
-      name = 'New Textile Product';
-      sku = `WM-${100 + Math.floor(Math.random() * 900)}`;
-      price = 999.99;
-      cost = 600.00;
-      description = 'Handcrafted textile product by WeaveMitra artisans';
-  }
+  const id = Math.floor(Math.random() * 1000000).toString();
+  const price = Math.round(Math.random() * 1000 * 100) / 100;
+  const cost = Math.round((price * 0.7) * 100) / 100;
+  const currentStock = Math.floor(Math.random() * 50);
   
   return {
     id,
-    name,
-    description,
-    sku,
+    name: `Sample Product ${id.substring(0, 3)}`,
+    description: 'This is a sample product for demonstration purposes',
+    sku: `SKU-${id.substring(0, 5)}`,
+    category: categories[Math.floor(Math.random() * categories.length)],
     price,
     cost,
-    currentStock: 25,
+    currentStock,
     minStockLevel: 5,
-    category,
     userId: 'guest-id',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

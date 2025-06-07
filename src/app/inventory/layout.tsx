@@ -4,7 +4,7 @@ import React from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui';
 import { usePathname, useRouter } from 'next/navigation';
-import { Package, List, Tags, BarChart } from 'lucide-react';
+import { Package, List, Tags, BarChart, QrCode } from 'lucide-react';
 
 export default function InventoryLayout({
   children,
@@ -19,6 +19,7 @@ export default function InventoryLayout({
     if (pathname.includes('/inventory/logs')) return 'logs';
     if (pathname.includes('/inventory/categories')) return 'categories';
     if (pathname.includes('/inventory/reports')) return 'reports';
+    if (pathname.includes('/inventory/barcode')) return 'barcode';
     return 'products';
   };
   
@@ -36,6 +37,9 @@ export default function InventoryLayout({
       case 'reports':
         router.push('/inventory/reports');
         break;
+      case 'barcode':
+        router.push('/inventory/barcode');
+        break;
     }
   };
 
@@ -48,7 +52,7 @@ export default function InventoryLayout({
         </div>
         
         <Tabs value={getCurrentTab()} onValueChange={handleTabChange} className="mb-6">
-          <TabsList className="grid grid-cols-4 w-full max-w-2xl">
+          <TabsList className="grid grid-cols-5 w-full max-w-3xl">
             <TabsTrigger value="products" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
               <span className="hidden sm:inline">Products</span>
@@ -64,6 +68,10 @@ export default function InventoryLayout({
             <TabsTrigger value="reports" className="flex items-center gap-2">
               <BarChart className="h-4 w-4" />
               <span className="hidden sm:inline">Reports</span>
+            </TabsTrigger>
+            <TabsTrigger value="barcode" className="flex items-center gap-2">
+              <QrCode className="h-4 w-4" />
+              <span className="hidden sm:inline">Barcode</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Card, Button, Badge, Calendar, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui';
+import { Card, Button, Badge, Calendar, Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { BellRing, Calendar as CalendarIcon, FileText, Settings, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 

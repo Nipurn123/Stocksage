@@ -85,21 +85,34 @@ const mockData = {
   // User data
   user: {
     id: 'guest-user-id',
-    fullName: 'Guest User',
-    email: 'guest@stocksage.com',
+    fullName: 'Guest - WeaveMitra',
+    email: 'guest@weavemitra.com',
     role: 'guest',
+    businessName: 'WeaveMitra Handloom Cooperative',
   },
   
   // Products data
   products: {
     data: Array(20).fill(null).map((_, i) => ({
       id: `product-${i + 1}`,
-      name: `Demo Product ${i + 1}`,
-      sku: `SKU-${1000 + i}`,
-      category: i % 3 === 0 ? 'Electronics' : i % 3 === 1 ? 'Office Supplies' : 'Furniture',
-      price: Math.floor(Math.random() * 1000) + 50,
-      quantity: Math.floor(Math.random() * 100),
+      name: [
+        'Mysore Silk Saree', 
+        'Karnataka Cotton Ikat Saree', 
+        'Ilkal Saree', 
+        'Molakalmuru Saree', 
+        'Udupi Cotton Fabric',
+        'Karnataka Khadi',
+        'Ilkal Fabric',
+        'Khadi Kurta',
+        'Lambani Embroidered Top',
+        'Kasuti Embroidered Clutch'
+      ][i % 10],
+      sku: `WeaveMitra-${['SAR', 'FAB', 'RTW', 'ACC', 'YRN'][Math.floor(i/4)]}-${1000 + i}`,
+      category: i < 4 ? 'Sarees' : i < 8 ? 'Handloom Fabric' : i < 12 ? 'Ready-to-wear' : i < 16 ? 'Accessories' : 'Yarn',
+      price: [2850, 3500, 4200, 6500, 550, 750, 850, 1250, 1800, 450, 680, 350, 2200, 1800, 950, 720][i % 16],
+      quantity: Math.floor(Math.random() * 50) + 5,
       reorderLevel: 10,
+      location: ['Main Workshop', 'Showroom', 'Village Artisan Center', 'Storage Facility'][i % 4],
       createdAt: new Date().toISOString(),
     })),
     total: 42,
@@ -112,10 +125,21 @@ const mockData = {
   sales: {
     data: Array(10).fill(null).map((_, i) => ({
       id: `invoice-${i + 1}`,
-      invoiceNumber: `INV-${2023000 + i}`,
-      customerName: `Demo Customer ${i + 1}`,
-      date: new Date(Date.now() - i * 86400000).toISOString(),
-      total: Math.floor(Math.random() * 10000) + 500,
+      invoiceNumber: `WM-INV-${2023000 + i}`,
+      customerName: [
+        'Ethnic Retail Store', 
+        'Luxe Boutique', 
+        'Handloom Cooperative', 
+        'Fashion Exports Ltd', 
+        'Craft Bazaar',
+        'Heritage Collection',
+        'Textile Gallery',
+        'Artisan Outlet',
+        'Cultural Artifacts',
+        'Handicraft Emporium'
+      ][i % 10],
+      date: new Date(Date.now() - i * 86400000 * 3).toISOString(), // Every 3 days
+      total: [12500, 8700, 23450, 5600, 9800, 18700, 7500, 4350, 15600, 28900][i % 10],
       status: i % 3 === 0 ? 'paid' : i % 3 === 1 ? 'pending' : 'overdue',
     })),
     total: 25,

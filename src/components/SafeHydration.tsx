@@ -5,6 +5,11 @@ import React, { useEffect, useState, ReactNode } from 'react';
 interface SafeHydrationProps {
   children: ReactNode;
   fallback?: ReactNode;
+  /**
+   * Optional delay in milliseconds before showing content after hydration
+   * Useful for preventing flash of content during transitions
+   */
+  delay?: number;
 }
 
 /**
@@ -12,27 +17,36 @@ interface SafeHydrationProps {
  * This helps prevent hydration mismatches for content that differs between server and client.
  * 
  * @example
- * <SafeHydration>
+ * <SafeHydration fallback={<span>Loading...</span>}>
  *   <div>{new Date().toLocaleString()}</div>
  * </SafeHydration>
  */
-export default function SafeHydration({ children, fallback = null }: SafeHydrationProps) {
+export default function SafeHydration({ children, fallback = null, delay = 0 }: SafeHydrationProps) {
   const [isHydrated, setIsHydrated] = useState(false);
+  const [shouldRender, setShouldRender] = useState(false);
 
   useEffect(() => {
     // Mark as hydrated once we're running on the client
     setIsHydrated(true);
-  }, []);
 
-  return (
-    <>
-      {/* Only render content that might cause hydration mismatches after hydration */}
-      <div style={{ display: isHydrated ? 'block' : 'none' }} className="delayed-visibility">
-        {children}
-      </div>
-      
-      {/* Show a fallback during server rendering */}
-      {!isHydrated && fallback}
-    </>
-  );
+    // If there's a delay, wait before showing content
+    if (delay > 0) {
+      const timer = setTimeout(() => {
+        setShouldRender(true);
+      }, delay);
+      return () => clearTimeout(timer);
+    } else {
+      setShouldRender(true);
+    }
+  }, [delay]);
+
+  // Add transition classes for smooth content appearance
+  const contentClass = shouldRender ? 'opacity-100 transition-opacity duration-200' : 'opacity-0';
+
+  // Only render children after hydration and optional delay
+  if (!isHydrated || !shouldRender) {
+    return fallback;
+  }
+
+  return <div className={contentClass}>{children}</div>;
 } 

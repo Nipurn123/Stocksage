@@ -5,16 +5,22 @@ import {
   Card,
   Button,
   Input,
-  Table,
   Modal,
   Label
 } from '@/components/ui';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell
+} from '@/components/ui/Table';
 import {
   Search,
   PlusCircle,
   Edit,
   Trash2,
-  ArrowUpDown,
   AlertCircle
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -286,21 +292,21 @@ export default function CategoriesPage() {
         ) : (
           <div className="overflow-x-auto">
             <Table>
-              <thead>
-                <tr>
-                  <th className="text-left py-3 px-4">Name</th>
-                  <th className="text-left py-3 px-4">Description</th>
-                  <th className="text-center py-3 px-4">Products</th>
-                  <th className="text-right py-3 px-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-center">Products</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filteredCategories.map((category) => (
-                  <tr key={category.id} className="border-t border-gray-200 dark:border-gray-700">
-                    <td className="py-3 px-4 font-medium">{category.name}</td>
-                    <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{category.description}</td>
-                    <td className="py-3 px-4 text-center">{category.productsCount}</td>
-                    <td className="py-3 px-4">
+                  <TableRow key={category.id}>
+                    <TableCell className="font-medium">{category.name}</TableCell>
+                    <TableCell className="text-gray-600 dark:text-gray-400">{category.description}</TableCell>
+                    <TableCell className="text-center">{category.productsCount}</TableCell>
+                    <TableCell>
                       <div className="flex justify-end space-x-2">
                         <Button
                           variant="ghost"
@@ -318,10 +324,10 @@ export default function CategoriesPage() {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
+              </TableBody>
             </Table>
           </div>
         )}

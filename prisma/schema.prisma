@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,37 +7,52 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ===== Authentication Models =====
 model User {
-  id              String    @id @default(uuid())
-  name            String?
-  email           String    @unique
-  emailVerified   DateTime?
-  password        String
-  image           String?
-  role            String    @default("user")
-  businessName    String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  accounts        Account[]
-  sessions        Session[]
+  id                 String                  @id @default(uuid())
+  name               String?
+  email              String                  @unique
+  emailVerified      DateTime?
+  password           String
+  image              String?
+  role               String                  @default("user")
+  businessName       String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  accounts           Account[]
+  barcodes           Barcode[]
+  categories         Category[]
+  customers          Customer[]
+  dashboardData      DashboardData?
+  daybookEntries     DaybookEntry[]
+  daybookTags        DaybookTag[]
+  financialDashboard FinancialDashboardData?
+  financialReports   FinancialReport[]
+  invoices           Invoice[]
+  journal            JournalEntry[]
+  notifications      Notification[]
+  products           Product[]
+  profiles           Profile[]
+  sessions           Session[]
+  shipments          Shipment[]
+  suppliers          Supplier[]
+  transactions       Transaction[]
+  settings           UserSettings?
 }
 
 model Account {
-  id                 String  @id @default(uuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?
-  access_token       String?
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?
-  session_state      String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -64,148 +73,427 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// ===== Business Models =====
-model Invoice {
+model UserSettings {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  theme                String   @default("light")
+  notificationsEnabled Boolean  @default(true)
+  language             String   @default("en")
+  timeZone             String   @default("UTC")
+  currency             String   @default("USD")
+  dateFormat           String   @default("MM/DD/YYYY")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      String   @default("info")
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Profile {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  color       String   @default("bg-blue-500")
+  isDefault   Boolean  @default(false)
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([name, userId])
+}
+
+model Product {
   id              String         @id @default(uuid())
-  invoiceNumber   String
-  date            String
-  dueDate         String
-  vendorName      String
-  vendorAddress   String
-  vendorEmail     String?
-  vendorPhone     String?
-  customerName    String
-  customerAddress String
-  totalAmount     Float
-  taxAmount       Float?
-  paymentTerms    String?
+  name            String
+  description     String?
+  sku             String?        @unique
+  barcode         String?        @unique
+  qrCodeData      String?
+  categoryId      String?
+  price           Float
+  cost            Float?
+  currentStock    Int            @default(0)
+  minStockLevel   Int            @default(0)
+  maxStockLevel   Int?
+  reorderPoint    Int?
+  reorderQuantity Int?
+  location        String?
+  image           String?
+  weight          Float?
+  weightUnit      String?        @default("kg")
+  dimensions      String?
+  supplierId      String?
+  userId          String
+  isActive        Boolean        @default(true)
+  taxRate         Float?         @default(0)
   notes           String?
-  status          String         @default("pending")
-  items           InvoiceItem[]
-  confidenceScore Float?
-  // Stripe related fields
-  stripeInvoiceId String?       @unique
-  stripeCustomerId String?
-  paymentStatus   PaymentStatus @default(PENDING)
-  pdfUrl          String?
-  // Workflow/Compliance fields
-  isCompliant     Boolean       @default(false)
-  complianceNotes String?
-  // Timestamps
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
-  // Relations
-  payments        Payment[]
+  inventoryLogs   InventoryLog[]
+  orderItems      OrderItem[]
+  user            User           @relation(fields: [userId], references: [id])
+  supplier        Supplier?      @relation(fields: [supplierId], references: [id])
+  category        Category?      @relation(fields: [categoryId], references: [id])
+}
+
+model Category {
+  id          String     @id @default(uuid())
+  name        String
+  description String?
+  userId      String
+  parentId    String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  parent      Category?  @relation("SubCategories", fields: [parentId], references: [id])
+  children    Category[] @relation("SubCategories")
+  user        User       @relation(fields: [userId], references: [id])
+  products    Product[]
+}
+
+model InventoryLog {
+  id             String   @id @default(cuid())
+  productId      String
+  quantity       Int
+  quantityBefore Int
+  quantityAfter  Int
+  type           String
+  reason         String?
+  notes          String?
+  reference      String?
+  invoiceId      String?
+  orderId        String?
+  documentRef    String?
+  locationFrom   String?
+  locationTo     String?
+  createdAt      DateTime @default(now())
+  createdBy      String?
+  cost           Float?
+  product        Product  @relation(fields: [productId], references: [id])
+}
+
+model Barcode {
+  id            String    @id @default(uuid())
+  code          String    @unique
+  type          String
+  productId     String?
+  description   String?
+  dateGenerated DateTime  @default(now())
+  lastScanned   DateTime?
+  userId        String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model InventoryReport {
+  id            String   @id @default(uuid())
+  title         String
+  description   String?
+  type          String
+  dateGenerated DateTime @default(now())
+  data          String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Supplier {
+  id           String          @id @default(uuid())
+  name         String
+  contactName  String?
+  email        String?
+  phone        String?
+  address      String?
+  city         String?
+  state        String?
+  postalCode   String?
+  country      String?
+  taxId        String?
+  notes        String?
+  website      String?
+  paymentTerms String?
+  creditLimit  Float?
+  isActive     Boolean         @default(true)
+  userId       String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  products     Product[]
+  orders       PurchaseOrder[]
+  user         User            @relation(fields: [userId], references: [id])
+}
+
+model PurchaseOrder {
+  id            String      @id @default(uuid())
+  orderNumber   String
+  supplierId    String
+  orderDate     DateTime
+  expectedDate  DateTime?
+  status        String      @default("DRAFT")
+  total         Float
+  tax           Float?
+  shipping      Float?
+  notes         String?
+  receiveStatus String?
+  receivedDate  DateTime?
+  paymentStatus String      @default("PENDING")
+  paymentDate   DateTime?
+  userId        String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  items         OrderItem[]
+  supplier      Supplier    @relation(fields: [supplierId], references: [id])
+  shipments     Shipment[]
+}
+
+model OrderItem {
+  id              String        @id @default(uuid())
+  purchaseOrderId String
+  productId       String
+  quantity        Int
+  unitPrice       Float
+  received        Int           @default(0)
+  receivedAt      DateTime?
+  total           Float
+  notes           String?
+  product         Product       @relation(fields: [productId], references: [id])
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+}
+
+model Shipment {
+  id               String        @id @default(uuid())
+  shipmentNumber   String
+  purchaseOrderId  String
+  carrier          String?
+  trackingNumber   String?
+  status           String        @default("PENDING")
+  estimatedArrival DateTime?
+  actualArrival    DateTime?
+  notes            String?
+  userId           String
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  user             User          @relation(fields: [userId], references: [id])
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+}
+
+model Customer {
+  id               String    @id @default(uuid())
+  name             String
+  email            String?
+  phone            String?
+  address          String?
+  city             String?
+  state            String?
+  postalCode       String?
+  country          String?
+  taxId            String?
+  notes            String?
+  creditLimit      Float?
+  stripeCustomerId String?   @unique
+  userId           String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id])
+  invoices         Invoice[]
+  payments         Payment[]
+}
+
+model Invoice {
+  id              String             @id @default(uuid())
+  invoiceNumber   String
+  customerId      String
+  date            DateTime
+  dueDate         DateTime
+  totalAmount     Float
+  taxAmount       Float?
+  discountAmount  Float?
+  paymentTerms    String?
+  notes           String?
+  status          String             @default("DRAFT")
+  confidenceScore Float?
+  stripeInvoiceId String?            @unique
+  paymentStatus   String             @default("PENDING")
+  pdfUrl          String?
+  isCompliant     Boolean            @default(false)
+  complianceNotes String?
+  source          String?            @default("MANUAL")
+  lastUpdated     DateTime?          @default(now())
+  userId          String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
   syncHistory     InventorySyncLog[]
+  user            User?              @relation(fields: [userId], references: [id])
+  customer        Customer           @relation(fields: [customerId], references: [id])
+  items           InvoiceItem[]
+  payments        Payment[]
 }
 
 model InvoiceItem {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   description String
   quantity    Float
   unitPrice   Float
   amount      Float
+  taxRate     Float?
+  taxAmount   Float?
+  discount    Float?
   invoiceId   String
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  // Inventory sync fields
   productSku  String?
-  syncedWith  String?  // Could be "Zoho" or other inventory system
+  syncedWith  String?
   syncedAt    DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-// New models for Stripe and automated invoicing
-
-model Customer {
-  id              String   @id @default(uuid())
-  name            String
-  email           String   @unique
-  phone           String?
-  address         String?
-  stripeCustomerId String?  @unique
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  payments        Payment[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  invoice     Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 }
 
 model Payment {
-  id              String       @id @default(uuid())
-  amount          Float
-  currency        String       @default("USD")
-  status          PaymentStatus @default(PENDING)
-  paymentMethod   String?
-  transactionId   String?      @unique // Stripe payment ID
-  invoiceId       String
-  invoice         Invoice      @relation(fields: [invoiceId], references: [id])
-  customerId      String?
-  customer        Customer?    @relation(fields: [customerId], references: [id])
-  paymentDate     DateTime
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  id            String   @id @default(uuid())
+  amount        Float
+  currency      String   @default("USD")
+  status        String   @default("PENDING")
+  paymentMethod String?
+  transactionId String?  @unique
+  invoiceId     String
+  customerId    String
+  paymentDate   DateTime
+  notes         String?
+  reference     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  customer      Customer @relation(fields: [customerId], references: [id])
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
 }
 
 model InventorySyncLog {
-  id              String   @id @default(uuid())
-  invoiceId       String
-  invoice         Invoice  @relation(fields: [invoiceId], references: [id])
-  system          String   // e.g., "Zoho Inventory"
-  status          String   // "success", "failed"
-  message         String?
-  syncedAt        DateTime @default(now())
+  id        String   @id @default(uuid())
+  invoiceId String
+  system    String
+  status    String
+  message   String?
+  syncedAt  DateTime @default(now())
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
 }
 
-// Product model for inventory management
-model Product {
-  id              String   @id @default(uuid())
-  name            String
-  description     String?
-  sku             String?  @unique
-  category        String?
-  categoryId      String?
-  Category        Category? @relation(fields: [categoryId], references: [id])
-  price           Float
-  cost            Float?
-  currentStock    Int      @default(0)
-  minStockLevel   Int      @default(0)
-  image           String?
-  supplier        String?
-  userId          String?  // Owner of the product
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  inventoryLogs   InventoryLog[]
+model FinancialReport {
+  id        String   @id @default(uuid())
+  title     String
+  type      String
+  startDate DateTime
+  endDate   DateTime
+  data      String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
 }
 
-// Inventory transaction logs
-model InventoryLog {
-  id              String   @id @default(cuid())
-  productId       String
-  product         Product  @relation(fields: [productId], references: [id])
-  quantity        Int
-  quantityChange  Int      // Add this field for stock changes
-  type            String   // "addition", "reduction", "adjustment", "in", "out"
-  reason          String?
-  notes           String?
-  reference       String?  // For tracking what operation caused this log
-  invoiceId       String?  // Optional reference to an invoice
-  createdAt       DateTime @default(now())
-  createdBy       String?  // User ID who made the change
+model Transaction {
+  id             String        @id @default(uuid())
+  type           String
+  amount         Float
+  date           DateTime
+  description    String
+  category       String?
+  reference      String?
+  accountId      String?
+  userId         String
+  journalEntryId String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  user           User          @relation(fields: [userId], references: [id])
+  account        BankAccount?  @relation(fields: [accountId], references: [id])
 }
 
-model Category {
-  id          String    @id @default(cuid())
-  name        String
-  description String?
-  userId      String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  products    Product[]
+model BankAccount {
+  id            String        @id @default(uuid())
+  name          String
+  accountNumber String?
+  bankName      String?
+  balance       Float         @default(0)
+  currency      String        @default("USD")
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  transactions  Transaction[]
 }
 
-enum PaymentStatus {
-  PENDING
-  PAID
-  FAILED
-  REFUNDED
-  CANCELLED
+model JournalEntry {
+  id           String        @id @default(uuid())
+  date         DateTime
+  reference    String?
+  description  String
+  debitTotal   Float
+  creditTotal  Float
+  isPosted     Boolean       @default(false)
+  postingDate  DateTime?
+  userId       String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  user         User          @relation(fields: [userId], references: [id])
+  transactions Transaction[]
+}
+
+model DashboardData {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  totalSales       Float    @default(0)
+  totalProducts    Int      @default(0)
+  lowStockItems    Int      @default(0)
+  outOfStockItems  Int      @default(0)
+  salesSummary     String?
+  recentActivities String?
+  lastUpdated      DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model FinancialDashboardData {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  revenueData        String?
+  expenseData        String?
+  cashflowData       String?
+  profitLossData     String?
+  accountsReceivable Float    @default(0)
+  accountsPayable    Float    @default(0)
+  lastUpdated        DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DaybookEntry {
+  id        String       @id @default(uuid())
+  title     String
+  content   String
+  date      DateTime
+  userId    String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags      DaybookTag[] @relation("DaybookEntryToDaybookTag")
+}
+
+model DaybookTag {
+  id        String         @id @default(uuid())
+  name      String
+  userId    String
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries   DaybookEntry[] @relation("DaybookEntryToDaybookTag")
+
+  @@unique([name, userId])
 }

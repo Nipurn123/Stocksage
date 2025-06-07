@@ -65,25 +65,27 @@ const availableTemplates: InvoiceTemplate[] = [
     logoUrl: '/logo.png',
     primaryColor: '#4f46e5',
     secondaryColor: '#e5e7eb',
-    footerText: 'Thank you for your business!',
+    footerText: 'Thank you for your business! WeaveMitra - Empowering Artisans, Preserving Traditions',
     termsAndConditions: [
       'Payment is due within 30 days',
-      'Goods once sold will not be taken back or exchanged',
-      'All disputes are subject to Hyderabad jurisdiction only',
+      'Handcrafted items may have slight variations as they are made by artisans',
+      'Returns accepted within 7 days for manufacturing defects only',
+      'All disputes are subject to Karnataka jurisdiction only',
       'This is a computer-generated invoice and does not require a signature'
     ]
   },
   {
     id: 'template-2',
-    name: 'Traditional Elegance',
+    name: 'WeaveMitra Heritage',
     logoUrl: '/logo-alt.png',
     primaryColor: '#854d0e',
     secondaryColor: '#fef3c7',
-    footerText: 'We appreciate your business and trust in our artisanal crafts.',
+    footerText: 'We appreciate your support in sustaining traditional handloom artisans and their craft.',
     termsAndConditions: [
       'Payment to be made by bank transfer only',
-      'Delivery within 7 working days after payment confirmation',
-      'Colors may vary slightly due to the nature of natural dyes'
+      'Delivery within 10-14 working days after payment confirmation',
+      'Colors may vary slightly due to the nature of natural dyes and handloom processes',
+      'Each purchase supports the livelihood of traditional artisans'
     ]
   }
 ];
@@ -91,41 +93,63 @@ const availableTemplates: InvoiceTemplate[] = [
 const customers: Customer[] = [
   {
     id: 'cust-1',
-    name: 'Ethnic Emporium',
-    gstin: '27AAPFU0939F1ZV',
-    address: '42 Fashion Street, Textile Market',
-    city: 'Mumbai',
-    state: 'Maharashtra',
-    pincode: '400001',
-    email: 'orders@ethnicemporium.com',
+    name: 'Ethnic Retail Store',
+    gstin: '29AABFE1234F1ZV',
+    address: '42 Fashion Avenue, Commercial Street',
+    city: 'Bangalore',
+    state: 'Karnataka',
+    pincode: '560001',
+    email: 'orders@ethnicretail.com',
     phone: '+91 98765 43210'
   },
   {
     id: 'cust-2',
-    name: 'Traditional Trends',
-    gstin: '29AARCS3114Q1ZP',
-    address: '23 Craft Avenue, Handloom Complex',
-    city: 'Bengaluru',
-    state: 'Karnataka',
-    pincode: '560001',
-    email: 'purchase@traditionaltrends.in',
+    name: 'Luxe Boutique',
+    gstin: '27AARLS3114Q1ZP',
+    address: '23 Elite Plaza, MG Road',
+    city: 'Mumbai',
+    state: 'Maharashtra',
+    pincode: '400001',
+    email: 'procurement@luxeboutique.com',
     phone: '+91 87654 32109'
   },
   {
     id: 'cust-3',
-    name: 'Heritage Boutique',
+    name: 'Handicraft Emporium',
     gstin: '07AAACH7409R1ZM',
-    address: '78 Cultural Lane, Textile Hub',
+    address: '78 Textile Lane, Crafts Hub',
     city: 'Delhi',
     state: 'Delhi',
     pincode: '110001',
-    email: 'orders@heritageboutique.com',
+    email: 'purchasing@handicraftemporium.com',
     phone: '+91 76543 21098'
+  },
+  {
+    id: 'cust-4',
+    name: 'Cultural Artifacts',
+    gstin: '33AARCA6719G1ZT',
+    address: '12 Heritage Road, Artisan Quarter',
+    city: 'Chennai',
+    state: 'Tamil Nadu',
+    pincode: '600001',
+    email: 'procurement@culturalartifacts.in',
+    phone: '+91 98765 12345'
+  },
+  {
+    id: 'cust-5',
+    name: 'Artisan Outlet',
+    gstin: '32AAFOA5521H1ZR',
+    address: '45 Craft Street, Traditional Market',
+    city: 'Kochi',
+    state: 'Kerala',
+    pincode: '682001',
+    email: 'orders@artisanoutlet.com',
+    phone: '+91 87654 56789'
   }
 ];
 
 // GST rates applicable for textile items
-const gstRates = [0, 5, 12, 18, 28];
+const gstRates = [0, 5, 12, 18];
 
 // HSN codes commonly used in textile industry
 const hsnCodes = [

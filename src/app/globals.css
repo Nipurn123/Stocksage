@@ -4,11 +4,96 @@
   :root {
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
+    
+    /* Card colors */
+    --card-background: 0 0% 98%;
+    --card-foreground: 240 10% 3.9%;
+    
+    /* Input colors */
+    --input-background: 0 0% 100%;
+    --input-border: 240 5.9% 90%;
+    --input-foreground: 240 10% 3.9%;
+    
+    /* Primary colors */
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    
+    /* Secondary colors */
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    
+    /* Accent colors */
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    
+    /* Muted colors */
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    
+    /* Border colors */
+    --border: 214.3 31.8% 91.4%;
+    --border-hover: 213.3 31.8% 80%;
+    
+    /* Destructive colors */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    
+    /* Success colors */
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 210 40% 98%;
+    
+    /* Warning colors */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+    
+    /* Radius */
+    --radius: 0.5rem;
   }
 
   .dark {
-    --background: 0 0% 0%;
-    --foreground: 0 0% 100%;
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    
+    /* Card colors */
+    --card-background: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    
+    /* Input colors */
+    --input-background: 0 0% 10%;
+    --input-border: 240 3.7% 15.9%;
+    --input-foreground: 0 0% 98%;
+    
+    /* Primary colors */
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 210 40% 98%;
+    
+    /* Secondary colors */
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    
+    /* Accent colors */
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    
+    /* Muted colors */
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    
+    /* Border colors */
+    --border: 217.2 32.6% 17.5%;
+    --border-hover: 215 20.2% 65.1%;
+    
+    /* Destructive colors */
+    --destructive: 0 62.8% 50.6%;
+    --destructive-foreground: 210 40% 98%;
+    
+    /* Success colors */
+    --success: 142.1 70.6% 45.3%;
+    --success-foreground: 210 40% 98%;
+    
+    /* Warning colors */
+    --warning: 48 96% 53%;
+    --warning-foreground: 0 0% 98%;
   }
 
   body {
@@ -28,6 +113,27 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --card-background: #121212;
+    --card-foreground: #ededed;
+    --input-background: #121212;
+    --input-border: #2a2a2a;
+    --input-foreground: #ededed;
+    --primary: #3b82f6;
+    --primary-foreground: #ffffff;
+    --secondary: #1f2937;
+    --secondary-foreground: #ffffff;
+    --accent: #1f2937;
+    --accent-foreground: #ffffff;
+    --muted: #1f2937;
+    --muted-foreground: #9ca3af;
+    --border: #1f2937;
+    --border-hover: #9ca3af;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --success: #10b981;
+    --success-foreground: #ffffff;
+    --warning: #f59e0b;
+    --warning-foreground: #ffffff;
   }
 }
 
@@ -61,5 +167,12 @@
   
   .animate-fadeOut {
     animation: fadeOut 0.3s ease-in forwards;
+  }
+  
+  /* Dark mode transition */
+  .transition-colors {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
   }
 }

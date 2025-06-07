@@ -400,14 +400,30 @@ export default function InvoiceReportsPage() {
             
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
+                <TableHead>
                   <TableRow>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Invoices</TableHead>
-                    <TableHead>Total Amount</TableHead>
-                    <TableHead>Average</TableHead>
+                    <TableHeader>
+                      <div className="flex items-center">
+                        Customer
+                      </div>
+                    </TableHeader>
+                    <TableHeader>
+                      <div className="flex items-center">
+                        Invoices
+                      </div>
+                    </TableHeader>
+                    <TableHeader>
+                      <div className="flex items-center">
+                        Total Amount
+                      </div>
+                    </TableHeader>
+                    <TableHeader>
+                      <div className="flex items-center">
+                        Average
+                      </div>
+                    </TableHeader>
                   </TableRow>
-                </TableHeader>
+                </TableHead>
                 <TableBody>
                   {stats.topCustomers.map((customer, index) => (
                     <TableRow key={index}>

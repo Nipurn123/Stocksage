@@ -1,5 +1,5 @@
 // This script runs after npm install and handles Prisma setup
-const { execSync } = require('child_process');
+import { execSync } from 'child_process';
 
 // Check if we're in Vercel build
 const isVercelBuild = process.env.VERCEL === '1' && process.env.CI === '1';

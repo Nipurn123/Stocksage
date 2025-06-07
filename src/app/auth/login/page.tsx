@@ -48,13 +48,26 @@ function LoginPageContent() {
   const [isSocialLoading, setIsSocialLoading] = useState(false);
   const [isEmailSent, setIsEmailSent] = useState(false);
   const [verificationId, setVerificationId] = useState<string | null>(null);
+  const [guestError, setGuestError] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Handle both redirect_url and callbackUrl parameters
-  const redirectUrl = searchParams.get('redirect_url') || searchParams.get('callbackUrl') || '/dashboard';
+  // Handle all possible redirect parameter names
+  const redirectUrl = 
+    searchParams.get('redirect') || 
+    searchParams.get('redirect_url') || 
+    searchParams.get('callbackUrl') || 
+    '/dashboard';
+    
   const { isSignedIn } = useAuth();
   const { signIn } = useSignIn();
+  
+  // Redirect if already signed in
+  React.useEffect(() => {
+    if (isSignedIn) {
+      router.push(redirectUrl);
+    }
+  }, [isSignedIn, redirectUrl, router]);
   
   // Email form
   const {
@@ -139,27 +152,29 @@ function LoginPageContent() {
     setIsLoading(true);
     
     try {
-      if (!signIn) throw new Error('Sign in not available');
-      
-      // Clear sign-out flag since the user is explicitly trying to sign in
-      localStorage.removeItem('user_signed_out');
-      
-      // Start the first factor verification with email
-      const firstFactor = await signIn.create({
+      const response = await signIn?.create({
         identifier: data.email,
-        strategy: "email_code",
+        strategy: 'email_code',
       });
-      
-      if (firstFactor.status === 'needs_first_factor') {
-        // If the first factor is pending, we need to verify the code
-        setIsEmailSent(true);
-        toast.success('Verification code sent to your email');
+
+      if (response?.status === 'complete') {
+        // User authenticated, redirecting
+        toast.success('Signed in successfully!');
+        router.push(redirectUrl);
       } else {
-        throw new Error('Unexpected response from authentication service');
+        // Otherwise, we send a verification code to the email
+        await signIn?.prepareFirstFactor({
+          strategy: 'email_code',
+          emailAddressId: response?.createdSessionId || '',
+        });
+        
+        toast.success('Verification code sent to your email');
+        setVerificationId(response?.id || null);
+        setIsEmailSent(true);
       }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'An error occurred during sign in');
-      console.error('Sign in error:', error);
+    } catch (error: any) {
+      console.error('Error during email login:', error);
+      toast.error(error.message || 'Failed to sign in. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -170,28 +185,21 @@ function LoginPageContent() {
     setIsLoading(true);
     
     try {
-      if (!signIn) throw new Error('Sign in not available');
-      
-      // Attempt to complete the first factor verification with the code
-      const result = await signIn.attemptFirstFactor({
-        strategy: "email_code",
+      const response = await signIn?.attemptFirstFactor({
+        strategy: 'email_code',
         code: data.code,
       });
-      
-      if (result.status === 'complete') {
-        toast.success('Login successful!');
-        
-        // Use a small delay to ensure the session is properly created
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Use window.location.href for redirection
-        window.location.href = redirectUrl;
+
+      if (response?.status === 'complete') {
+        // Verification successful, redirect
+        toast.success('Signed in successfully!');
+        router.push(redirectUrl);
       } else {
-        throw new Error('Verification failed. Please check your code and try again.');
+        toast.error('Verification failed. Please try again.');
       }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'An error occurred during verification');
-      console.error('Verification error:', error);
+    } catch (error: any) {
+      console.error('Error during OTP verification:', error);
+      toast.error(error.message || 'Verification failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -205,71 +213,42 @@ function LoginPageContent() {
 
   const handleGuestLogin = async () => {
     setIsGuestLoading(true);
+    setGuestError(null); // Clear previous errors
     
     try {
-      if (!signIn) throw new Error('Sign in not available');
-      
-      // Clear sign-out flag since the user is explicitly trying to sign in as guest
-      localStorage.removeItem('user_signed_out');
-      
-      // First, create a guest user through our API
-      const response = await fetch('/api/auth/guest-signin', {
+      // First, get a guest credential from our API
+      const guestResponse = await fetch('/api/auth/guest-signin', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to create guest account');
+      if (!guestResponse.ok) {
+        throw new Error('Failed to create guest session');
       }
       
-      const guestData = await response.json();
+      const guestData = await guestResponse.json();
       
       if (!guestData.success) {
-        throw new Error(guestData.error || 'Failed to create guest account');
+        throw new Error(guestData.error || 'Failed to create guest session');
       }
       
-      try {
-        // Sign in with the generated guest credentials
-        const result = await signIn.create({
-          identifier: guestData.email,
-          password: guestData.password,
-        });
-        
-        if (result.status === 'complete') {
-          toast.success('Logged in as guest!');
-          
-          // Use a small delay to ensure the session is properly created
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          // Use window.location.href for redirection instead of router.push
-          // This ensures a full page load and proper session establishment
-          window.location.href = redirectUrl;
-        } else {
-          throw new Error('Guest login failed. Please try again.');
-        }
-      } catch (signInError: any) {
-        console.error('Sign-in error:', signInError);
-        
-        // Handle specific Clerk errors
-        if (signInError.message && (
-          signInError.message.includes('single session mode') ||
-          signInError.message.includes('Unable to authenticate this browser') ||
-          signInError.message.includes('Check your Clerk cookies')
-        )) {
-          toast.error('Authentication error. Clearing data and trying again...');
-          // Add an error parameter to the URL for the error boundary to pick up
-          window.location.href = `/api/auth/logout?redirect_url=${encodeURIComponent('/auth/login?clerkError=' + encodeURIComponent('Authentication error. Please try again.'))}`;
-          return;
-        }
-        
-        // Rethrow other errors
-        throw signInError;
+      // Now sign in with the generated credentials
+      const response = await signIn?.create({
+        identifier: guestData.email,
+        password: guestData.password,
+      });
+
+      if (response?.status === 'complete') {
+        toast.success('Signed in as guest!');
+        router.push(redirectUrl);
+      } else {
+        setGuestError('Guest login failed. Please try email login instead.');
+        toast.error('Guest login failed. Please try email login.');
       }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'An error occurred during guest login');
-      console.error('Guest login error:', error);
+    } catch (error: any) {
+      console.error('Error during guest login:', error);
+      setGuestError(error.message || 'Guest login failed. Please try email login.');
+      toast.error(error.message || 'Guest login failed. Please try email login.');
     } finally {
       setIsGuestLoading(false);
     }
@@ -280,30 +259,14 @@ function LoginPageContent() {
     setIsSocialLoading(true);
     
     try {
-      if (!signIn) throw new Error('Sign in not available');
-      
-      // Clear sign-out flag since the user is explicitly trying to sign in with social
-      localStorage.removeItem('user_signed_out');
-      
-      try {
-        await signIn.authenticateWithRedirect({
-          strategy,
-          redirectUrl: '/auth/sso-callback',
-          redirectUrlComplete: redirectUrl,
-        });
-      } catch (socialError: any) {
-        // Check for single session mode error
-        if (socialError.message && socialError.message.includes('single session mode')) {
-          toast.error('You need to completely sign out first.');
-          // Redirect to our logout API
-          window.location.href = `/api/auth/logout?redirect_url=${encodeURIComponent('/auth/login')}`;
-          return;
-        }
-        throw socialError;
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'An error occurred during social login');
-      console.error('Social login error:', error);
+      await signIn?.authenticateWithRedirect({
+        strategy,
+        redirectUrl: `/auth/sso-callback?redirect=${encodeURIComponent(redirectUrl)}`,
+        redirectUrlComplete: redirectUrl,
+      });
+    } catch (error: any) {
+      console.error('Error during social login:', error);
+      toast.error(error.message || 'Social login failed. Please try again.');
       setIsSocialLoading(false);
     }
   };
@@ -422,6 +385,13 @@ function LoginPageContent() {
           >
             Continue as Guest
           </Button>
+          
+          {guestError && (
+            <div className="mt-2 text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-2 rounded border border-red-200 dark:border-red-800">
+              <p>{guestError}</p>
+              <p className="text-xs mt-1">You might need to refresh the page and try again.</p>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 text-center">

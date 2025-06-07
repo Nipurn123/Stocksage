@@ -9,7 +9,8 @@ export { Checkbox } from './Checkbox';
 export { Label } from './Label';
 export { Popover, PopoverContent, PopoverTrigger } from './Popover';
 export { Calendar } from './Calendar';
-export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './Table';
+// Export Table components
+export { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from './Table';
 export { Textarea } from './Textarea';
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './Tabs';
 export { default as Toast } from './Toast';

@@ -41,41 +41,41 @@ const CardContent: React.FC<{ children: React.ReactNode; className?: string }> =
 // Mock data for inventory metrics
 const inventoryMetrics = {
   totalItems: 2478,
-  totalValue: 278500,
+  totalValue: 6785000,
   lowStock: 32,
   outOfStock: 15,
-  turnoverRate: 3.4,
-  growth: 12.5,
-  avgAge: 45, // days
+  turnoverRate: 2.8,
+  growth: 15.7,
+  avgAge: 42, // days
   pendingOrders: 23
 };
 
 // Mock data for inventory categories
 const inventoryCategories = [
-  { name: 'Electronics', value: 35, color: '#3b82f6' },
-  { name: 'Furniture', value: 25, color: '#10b981' },
-  { name: 'Office Supplies', value: 20, color: '#f59e0b' },
-  { name: 'Books', value: 10, color: '#8b5cf6' },
-  { name: 'Other', value: 10, color: '#6b7280' }
+  { name: 'Sarees', value: 38, color: '#3b82f6' },
+  { name: 'Handloom Fabric', value: 28, color: '#10b981' },
+  { name: 'Ready-to-wear', value: 15, color: '#f59e0b' },
+  { name: 'Accessories', value: 12, color: '#8b5cf6' },
+  { name: 'Yarn', value: 7, color: '#6b7280' }
 ];
 
 // Mock data for inventory movement
 const inventoryMovement = [
-  { month: 'Jan', inflow: 245, outflow: 220 },
-  { month: 'Feb', inflow: 267, outflow: 230 },
-  { month: 'Mar', inflow: 280, outflow: 255 },
-  { month: 'Apr', inflow: 310, outflow: 290 },
-  { month: 'May', inflow: 275, outflow: 305 },
-  { month: 'Jun', inflow: 290, outflow: 270 }
+  { month: 'Jan', inflow: 145, outflow: 120 },
+  { month: 'Feb', inflow: 167, outflow: 130 },
+  { month: 'Mar', inflow: 180, outflow: 155 },
+  { month: 'Apr', inflow: 210, outflow: 190 },
+  { month: 'May', inflow: 175, outflow: 205 },
+  { month: 'Jun', inflow: 190, outflow: 170 }
 ];
 
 // Mock data for low stock items
 const lowStockItems = [
-  { id: 1, name: 'HP Printer Ink Cartridge', sku: 'INK-HP-4500', quantity: 3, threshold: 10, supplier: 'HP Inc.' },
-  { id: 2, name: 'Ergonomic Chair', sku: 'FUR-CH-ERG01', quantity: 5, threshold: 15, supplier: 'Office Solutions Ltd.' },
-  { id: 3, name: 'Wireless Mouse', sku: 'ACC-MOU-LOG12', quantity: 7, threshold: 20, supplier: 'Logitech' },
-  { id: 4, name: 'USB-C Adapters', sku: 'ACC-USB-C65', quantity: 4, threshold: 12, supplier: 'Tech Accessories Co.' },
-  { id: 5, name: 'A4 Paper Reams', sku: 'SUP-PAP-A4', quantity: 8, threshold: 25, supplier: 'Paper Supplies Inc.' }
+  { id: 1, name: 'Mysore Silk Saree', sku: 'WM-SAR-001', quantity: 3, threshold: 5, supplier: 'Mysore Silk Weavers Association' },
+  { id: 2, name: 'Karnataka Cotton Ikat Saree', sku: 'WM-SAR-005', quantity: 4, threshold: 8, supplier: 'Karnataka Handloom Development Corp.' },
+  { id: 3, name: 'Organic Cotton Yarn', sku: 'WM-YRN-002', quantity: 7, threshold: 15, supplier: 'Organic Yarns India' },
+  { id: 4, name: 'Natural Indigo Dye', sku: 'WM-DYE-007', quantity: 2, threshold: 5, supplier: 'Organic Dye Solutions' },
+  { id: 5, name: 'Lambani Embroidery Kit', sku: 'WM-EBR-003', quantity: 8, threshold: 10, supplier: 'Lambani Craft Collective' }
 ];
 
 export default function InventoryReportsPage() {

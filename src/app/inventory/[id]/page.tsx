@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
-import AppLayout from '@/components/layout/AppLayout';
+import { useUser, useAuth } from '@clerk/nextjs';
 import { Card, Button, Badge, Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui';
 import { 
   ArrowLeft, Edit, Trash2, Package, DollarSign, ShoppingCart, 
@@ -17,6 +16,7 @@ export default function ProductDetailPage() {
   const router = useRouter();
   const { id } = useParams();
   const { user } = useUser();
+  const { getToken } = useAuth();
   const isGuest = user?.publicMetadata?.role === 'guest';
   
   const [product, setProduct] = useState<Product & { inventoryLogs?: InventoryLog[] }>();
@@ -27,7 +27,18 @@ export default function ProductDetailPage() {
     const fetchProduct = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`/api/inventory/${id}`);
+        // Get auth token
+        const token = await getToken();
+        
+        if (!token) {
+          throw new Error('Not authenticated');
+        }
+        
+        const response = await fetch(`/api/inventory/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         
         if (!response.ok) {
           throw new Error('Failed to fetch product details');
@@ -51,7 +62,7 @@ export default function ProductDetailPage() {
     if (id) {
       fetchProduct();
     }
-  }, [id]);
+  }, [id, getToken]);
 
   const handleDeleteProduct = async () => {
     if (!confirm('Are you sure you want to delete this product?')) {
@@ -59,19 +70,39 @@ export default function ProductDetailPage() {
     }
 
     try {
+      setIsLoading(true);
+      
+      // Get auth token
+      const token = await getToken();
+      
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+      
       const response = await fetch(`/api/inventory/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        }
       });
 
+      const result = await response.json();
+      
       if (!response.ok) {
-        throw new Error('Failed to delete product');
+        throw new Error(result.error || 'Failed to delete product');
       }
 
+      // Show success message with toast or other notification (if component available)
+      // Redirect back to inventory page
       router.push('/inventory');
       router.refresh();
     } catch (err) {
       console.error('Error deleting product:', err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      
+      // Keep the page open and show the error message
+      setIsLoading(false);
     }
   };
 
@@ -99,21 +130,19 @@ export default function ProductDetailPage() {
 
   if (isLoading) {
     return (
-      <AppLayout>
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-6"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
-            <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </div>
+      <div className="animate-pulse">
+        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-6"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
         </div>
-      </AppLayout>
+      </div>
     );
   }
 
   if (error || !product) {
     return (
-      <AppLayout>
+      <>
         <div className="page-heading">
           <h1 className="page-title">Product Details</h1>
           <Button variant="outline" asChild>
@@ -136,12 +165,12 @@ export default function ProductDetailPage() {
             </div>
           </div>
         </div>
-      </AppLayout>
+      </>
     );
   }
 
   return (
-    <AppLayout>
+    <>
       <div className="page-heading">
         <h1 className="page-title">{product.name}</h1>
         <div className="flex items-center space-x-3">
@@ -360,6 +389,6 @@ export default function ProductDetailPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </AppLayout>
+    </>
   );
 } 

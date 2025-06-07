@@ -2,15 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Card, Badge, Input, Select, Label, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Pagination } from '@/components/ui';
-import { Search, Plus, FileDown, Filter, ArrowDown, ArrowUp, ArrowUpDown, FileText, Clock, CheckCircle, AlertTriangle, RefreshCw, ScanLine, Pencil, DownloadCloud } from 'lucide-react';
+import { Button, Card, Badge, Input, Label } from '@/components/ui';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
+import { Search, Plus, FileDown, ArrowDown, ArrowUp, ArrowUpDown, FileText, Clock, CheckCircle, AlertTriangle, RefreshCw, ScanLine, Pencil, DownloadCloud, Eye, Edit } from 'lucide-react';
 import { useUser } from '@clerk/nextjs';
 import { toast } from 'react-hot-toast';
 import type { Invoice } from '@/types/invoice';
 import { FilterDropdown } from '@/components/invoices';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { DateRangePicker } from '@/components/ui';
 
 // Define a type for filters
 interface InvoiceFilters {
@@ -182,7 +182,7 @@ const SAMPLE_INVOICES: EnhancedInvoice[] = [
 
 export default function InvoicesPage() {
   const router = useRouter();
-  const { user, isLoaded } = useUser();
+  const { user, isLoaded, isSignedIn } = useUser();
   const isGuest = user?.publicMetadata?.role === 'guest';
   
   const [invoices, setInvoices] = useState<EnhancedInvoice[]>([]);
@@ -197,11 +197,18 @@ export default function InvoicesPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [activeFilters, setActiveFilters] = useState<InvoiceFilters>({});
   const [totalPages, setTotalPages] = useState(1);
+  const [retryCount, setRetryCount] = useState(0);
   
   const itemsPerPage = 10;
   
   // Define fetchInvoices function before using it
   const fetchInvoices = async () => {
+    // Don't fetch if not signed in
+    if (!isSignedIn) {
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     
@@ -218,10 +225,32 @@ export default function InvoicesPage() {
         url.searchParams.append('status', statusFilter);
       }
       
-      const response = await fetch(url.toString());
+      // Add a cache-busting parameter to prevent caching issues
+      url.searchParams.append('_t', Date.now().toString());
+      
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${user?.id || 'guest-user'}`,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store',
+          'Pragma': 'no-cache'
+        },
+        // Increase timeout
+        cache: 'no-store',
+        next: { revalidate: 0 }
+      });
+      
       if (!response.ok) {
+        // Handle authentication errors
+        if (response.status === 401) {
+          // Redirect to login page if unauthorized
+          router.push(`/auth/login?redirect=${encodeURIComponent('/invoices')}`);
+          throw new Error('Please sign in to view invoices');
+        }
         throw new Error(`Error: ${response.status}`);
       }
+      
       const data = await response.json();
       
       if (data.success) {
@@ -231,28 +260,71 @@ export default function InvoicesPage() {
         if (data.pagination) {
           setTotalPages(data.pagination.pages);
         }
+        
+        // Reset retry count on success
+        setRetryCount(0);
       } else {
         throw new Error(data.error || 'Failed to fetch invoices');
       }
       setLoading(false);
     } catch (err) {
       console.error('Error fetching invoices:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch invoices');
-      toast.error('Failed to load invoices. Please try again.');
-      // Fallback to sample data in development
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Using sample data as fallback');
-        setInvoices(SAMPLE_INVOICES);
+      
+      // Don't show error for auth redirects
+      if (err instanceof Error && err.message.includes('Please sign in')) {
+        // Don't set error message since we're redirecting
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to fetch invoices');
+        toast.error('Failed to load invoices. Please try again.');
+        
+        // Increment retry count
+        setRetryCount(prev => prev + 1);
+        
+        // Fallback to sample data in development
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Using sample data as fallback');
+          setInvoices(SAMPLE_INVOICES);
+        }
       }
+      
       setLoading(false);
     }
   };
   
-  // Fetch invoices
+  // Add a redirect effect if not signed in
   useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      router.push(`/auth/login?redirect=${encodeURIComponent('/invoices')}`);
+    }
+  }, [isLoaded, isSignedIn, router]);
+  
+  // Fetch invoices with exponential backoff retry logic
+  useEffect(() => {
+    // Don't attempt to fetch if we're not signed in
+    if (!isSignedIn) return;
+    
+    // Only fetch if signed in and we don't have data yet or if we're retrying
+    if (isSignedIn && (!invoices.length || error)) {
+      // If we've tried less than 3 times
+      if (retryCount < 3) {
+        const backoffTime = retryCount === 0 ? 0 : Math.pow(2, retryCount) * 1000;
+        
+        const timeoutId = setTimeout(() => {
+          fetchInvoices();
+        }, backoffTime);
+        
+        return () => clearTimeout(timeoutId);
+      }
+    }
+  }, [isSignedIn, currentPage, statusFilter, retryCount]);
+  
+  // Handle manual retry
+  const handleRetry = () => {
+    setRetryCount(0);
+    setError(null);
     fetchInvoices();
-  }, [currentPage, statusFilter]); // Fetch when page or status changes
-
+  };
+  
   // Apply filters and search
   useEffect(() => {
     let result = [...invoices];
@@ -308,47 +380,49 @@ export default function InvoicesPage() {
     
     // Apply sorting
     result.sort((a, b) => {
-      let aValue: any;
-      let bValue: any;
-      
       switch (sortField) {
         case 'date':
-          aValue = new Date(a.date).getTime();
-          bValue = new Date(b.date).getTime();
-          break;
+          return sortDirection === 'asc' 
+            ? new Date(a.date).getTime() - new Date(b.date).getTime()
+            : new Date(b.date).getTime() - new Date(a.date).getTime();
         case 'dueDate':
-          aValue = new Date(a.dueDate).getTime();
-          bValue = new Date(b.dueDate).getTime();
-          break;
+          return sortDirection === 'asc'
+            ? new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+            : new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
         case 'totalAmount':
-          aValue = a.totalAmount;
-          bValue = b.totalAmount;
-          break;
+          return sortDirection === 'asc' 
+            ? a.totalAmount - b.totalAmount
+            : b.totalAmount - a.totalAmount;
         case 'customerName':
-          aValue = a.customerName;
-          bValue = b.customerName;
-          break;
-        case 'status':
-          aValue = a.status;
-          bValue = b.status;
-          break;
-        case 'source':
-          aValue = a.source;
-          bValue = b.source;
-          break;
-        case 'lastUpdated':
-          aValue = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
-          bValue = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
-          break;
-        default:
-          aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      }
-      
-      if (sortDirection === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
+          if (sortDirection === 'asc') {
+            return a.customerName.localeCompare(b.customerName);
+          } else {
+            return b.customerName.localeCompare(a.customerName);
+          }
+        case 'status': {
+          const aStatus = a.status || '';
+          const bStatus = b.status || '';
+          return sortDirection === 'asc'
+            ? aStatus.localeCompare(bStatus)
+            : bStatus.localeCompare(aStatus);
+        }
+        case 'source': {
+          const aSource = a.source || '';
+          const bSource = b.source || '';
+          return sortDirection === 'asc'
+            ? aSource.localeCompare(bSource)
+            : bSource.localeCompare(aSource);
+        }
+        case 'lastUpdated': {
+          const aTime = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
+          const bTime = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
+          return sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
+        }
+        default: {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
+        }
       }
     });
     
@@ -397,7 +471,7 @@ export default function InvoicesPage() {
     toast.loading('Refreshing invoices...', { id: 'refresh-invoices' });
     fetchInvoices().then(() => {
       toast.success('Invoices refreshed!', { id: 'refresh-invoices' });
-    }).catch((error: Error) => {
+    }).catch(() => {
       toast.error('Failed to refresh invoices', { id: 'refresh-invoices' });
     });
   };
@@ -411,10 +485,15 @@ export default function InvoicesPage() {
   
   // Sort indicator component
   const SortIndicator = ({ field }: { field: string }) => {
-    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 ml-1" />;
-    return sortDirection === 'asc' ? 
-      <ArrowUp className="h-4 w-4 ml-1" /> : 
-      <ArrowDown className="h-4 w-4 ml-1" />;
+    if (sortField !== field) return (
+      <ArrowUpDown className="h-4 w-4 ml-1.5 text-gray-400 dark:text-gray-500 transition-colors duration-200" />
+    );
+    
+    return sortDirection === 'asc' ? (
+      <ArrowUp className="h-4 w-4 ml-1.5 text-blue-500 dark:text-blue-400 transition-colors duration-200" />
+    ) : (
+      <ArrowDown className="h-4 w-4 ml-1.5 text-blue-500 dark:text-blue-400 transition-colors duration-200" />
+    );
   };
   
   // Status badge component
@@ -422,27 +501,42 @@ export default function InvoicesPage() {
     switch (status) {
       case 'paid':
         return (
-          <Badge variant="success" className="flex items-center">
-            <CheckCircle className="h-3.5 w-3.5 mr-1" />
+          <Badge 
+            variant="success" 
+            className="flex items-center px-2.5 py-1 rounded-full text-sm transition-colors duration-200 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-100 dark:border-green-800/50"
+          >
+            <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
             Paid
           </Badge>
         );
       case 'pending':
         return (
-          <Badge variant="warning" className="flex items-center">
-            <Clock className="h-3.5 w-3.5 mr-1" />
+          <Badge 
+            variant="warning" 
+            className="flex items-center px-2.5 py-1 rounded-full text-sm transition-colors duration-200 bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border border-yellow-100 dark:border-yellow-800/50"
+          >
+            <Clock className="h-3.5 w-3.5 mr-1.5" />
             Pending
           </Badge>
         );
       case 'overdue':
         return (
-          <Badge variant="destructive" className="flex items-center">
-            <AlertTriangle className="h-3.5 w-3.5 mr-1" />
+          <Badge 
+            variant="destructive" 
+            className="flex items-center px-2.5 py-1 rounded-full text-sm transition-colors duration-200 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-100 dark:border-red-800/50"
+          >
+            <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
             Overdue
           </Badge>
         );
       default:
-        return <Badge>{status || 'Unknown'}</Badge>;
+        return (
+          <Badge 
+            className="flex items-center px-2.5 py-1 rounded-full text-sm transition-colors duration-200"
+          >
+            {status || 'Unknown'}
+          </Badge>
+        );
     }
   };
   
@@ -451,33 +545,53 @@ export default function InvoicesPage() {
     switch (source) {
       case 'scan':
         return (
-          <Badge variant="secondary" className="bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
-            <ScanLine className="h-3.5 w-3.5 mr-1" />
+          <Badge 
+            variant="secondary" 
+            className="flex items-center px-2.5 py-1 rounded-full text-xs transition-colors duration-200 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-100 dark:border-blue-800/50"
+          >
+            <ScanLine className="h-3.5 w-3.5 mr-1.5" />
             Scanned
           </Badge>
         );
       case 'manual':
         return (
-          <Badge variant="secondary" className="bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400">
-            <Pencil className="h-3.5 w-3.5 mr-1" />
+          <Badge 
+            variant="secondary" 
+            className="flex items-center px-2.5 py-1 rounded-full text-xs transition-colors duration-200 bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-100 dark:border-purple-800/50"
+          >
+            <Pencil className="h-3.5 w-3.5 mr-1.5" />
             Manual
           </Badge>
         );
       case 'import':
         return (
-          <Badge variant="secondary" className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
-            <DownloadCloud className="h-3.5 w-3.5 mr-1" />
+          <Badge 
+            variant="secondary" 
+            className="flex items-center px-2.5 py-1 rounded-full text-xs transition-colors duration-200 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-100 dark:border-green-800/50"
+          >
+            <DownloadCloud className="h-3.5 w-3.5 mr-1.5" />
             Imported
           </Badge>
         );
       case 'system':
         return (
-          <Badge variant="secondary" className="bg-gray-50 text-gray-700 dark:bg-gray-700 dark:text-gray-400">
+          <Badge 
+            variant="secondary" 
+            className="flex items-center px-2.5 py-1 rounded-full text-xs transition-colors duration-200 bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
+          >
+            <FileText className="h-3.5 w-3.5 mr-1.5" />
             System
           </Badge>
         );
       default:
-        return <Badge variant="secondary">{source}</Badge>;
+        return (
+          <Badge 
+            variant="secondary" 
+            className="flex items-center px-2.5 py-1 rounded-full text-xs transition-colors duration-200"
+          >
+            {source}
+          </Badge>
+        );
     }
   };
   
@@ -498,13 +612,29 @@ export default function InvoicesPage() {
     }
   };
   
+  const handleViewSampleInvoice = (type = 'standard') => {
+    fetch(`/api/invoices/sample?type=${type}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          router.push(`/invoices/${data.invoiceId}`);
+        } else {
+          toast.error('Failed to create sample invoice');
+        }
+      })
+      .catch(error => {
+        console.error('Error creating sample invoice:', error);
+        toast.error('Error creating sample invoice');
+      });
+  };
+  
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4">
+        <Card className="p-4 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all duration-200">
           <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-full text-blue-600 mr-4 dark:bg-blue-900/20 dark:text-blue-400">
+            <div className="p-2 bg-blue-100 rounded-full text-blue-600 mr-4 dark:bg-blue-900/30 dark:text-blue-400 transition-colors duration-200">
               <FileText className="h-5 w-5" />
             </div>
             <div>
@@ -514,9 +644,9 @@ export default function InvoicesPage() {
           </div>
         </Card>
         
-        <Card className="p-4">
+        <Card className="p-4 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all duration-200">
           <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-full text-green-600 mr-4 dark:bg-green-900/20 dark:text-green-400">
+            <div className="p-2 bg-green-100 rounded-full text-green-600 mr-4 dark:bg-green-900/30 dark:text-green-400 transition-colors duration-200">
               <CheckCircle className="h-5 w-5" />
             </div>
             <div>
@@ -526,9 +656,9 @@ export default function InvoicesPage() {
           </div>
         </Card>
         
-        <Card className="p-4">
+        <Card className="p-4 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all duration-200">
           <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-full text-yellow-600 mr-4 dark:bg-yellow-900/20 dark:text-yellow-400">
+            <div className="p-2 bg-yellow-100 rounded-full text-yellow-600 mr-4 dark:bg-yellow-900/30 dark:text-yellow-400 transition-colors duration-200">
               <Clock className="h-5 w-5" />
             </div>
             <div>
@@ -538,9 +668,9 @@ export default function InvoicesPage() {
           </div>
         </Card>
         
-        <Card className="p-4">
+        <Card className="p-4 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all duration-200">
           <div className="flex items-center">
-            <div className="p-2 bg-red-100 rounded-full text-red-600 mr-4 dark:bg-red-900/20 dark:text-red-400">
+            <div className="p-2 bg-red-100 rounded-full text-red-600 mr-4 dark:bg-red-900/30 dark:text-red-400 transition-colors duration-200">
               <AlertTriangle className="h-5 w-5" />
             </div>
             <div>
@@ -553,31 +683,58 @@ export default function InvoicesPage() {
       
       {/* Source Stats - Small badges showing counts by source */}
       <div className="flex flex-wrap gap-2">
-        <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
-          <ScanLine className="h-3.5 w-3.5 mr-1" />
+        <div className="inline-flex items-center px-2.5 py-1.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-100 dark:border-blue-800/50 transition-colors duration-200">
+          <ScanLine className="h-3.5 w-3.5 mr-1.5" />
           Scanned: {invoiceStats.bySource.scan}
         </div>
-        <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400">
-          <Pencil className="h-3.5 w-3.5 mr-1" />
+        <div className="inline-flex items-center px-2.5 py-1.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-100 dark:border-purple-800/50 transition-colors duration-200">
+          <Pencil className="h-3.5 w-3.5 mr-1.5" />
           Manual: {invoiceStats.bySource.manual}
         </div>
-        <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
-          <DownloadCloud className="h-3.5 w-3.5 mr-1" />
+        <div className="inline-flex items-center px-2.5 py-1.5 rounded-full text-xs font-medium bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-100 dark:border-green-800/50 transition-colors duration-200">
+          <DownloadCloud className="h-3.5 w-3.5 mr-1.5" />
           Imported: {invoiceStats.bySource.import}
         </div>
       </div>
       
+      {/* Quick Actions */}
+      <div className="flex flex-wrap gap-3 mb-2">
+        <Button 
+          onClick={() => router.push('/invoices/create')}
+          className="transition-all duration-200 shadow-sm hover:shadow-md"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          New Invoice
+        </Button>
+        <Button 
+          variant="outline" 
+          onClick={() => router.push('/invoices/scan')}
+          className="transition-all duration-200 border-gray-300 dark:border-gray-700"
+        >
+          <ScanLine className="h-4 w-4 mr-2" />
+          Scan Invoice
+        </Button>
+        <Button 
+          variant="outline" 
+          onClick={() => router.push('/invoices/manual')}
+          className="transition-all duration-200 border-gray-300 dark:border-gray-700"
+        >
+          <Pencil className="h-4 w-4 mr-2" />
+          Manual Entry
+        </Button>
+      </div>
+      
       {/* Filters */}
-      <Card className="p-6">
+      <Card className="p-6 border border-gray-200 dark:border-gray-800 shadow-sm transition-all duration-200">
         <div className="flex flex-col md:flex-row gap-4 items-end">
           <div className="w-full md:w-1/3">
-            <Label htmlFor="search">Search</Label>
+            <Label htmlFor="search" className="text-gray-700 dark:text-gray-300 font-medium mb-1.5 transition-colors duration-200">Search</Label>
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400 transition-colors duration-200" />
               <Input
                 id="search"
                 placeholder="Search by invoice #, customer, or vendor"
-                className="pl-9"
+                className="pl-9 border-gray-300 dark:border-gray-700 transition-colors duration-200"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -585,11 +742,11 @@ export default function InvoicesPage() {
           </div>
           
           <div className="w-full md:w-1/4">
-            <Label htmlFor="status">Status</Label>
+            <Label htmlFor="status" className="text-gray-700 dark:text-gray-300 font-medium mb-1.5 transition-colors duration-200">Status</Label>
             <select
               id="status"
               aria-label="Filter by status"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors duration-200"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -601,11 +758,11 @@ export default function InvoicesPage() {
           </div>
           
           <div className="w-full md:w-1/4">
-            <Label htmlFor="source">Source</Label>
+            <Label htmlFor="source" className="text-gray-700 dark:text-gray-300 font-medium mb-1.5 transition-colors duration-200">Source</Label>
             <select
               id="source"
               aria-label="Filter by source"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors duration-200"
               value={sourceFilter}
               onChange={(e) => setSourceFilter(e.target.value)}
             >
@@ -630,12 +787,14 @@ export default function InvoicesPage() {
                 setSourceFilter('all');
                 setActiveFilters({});
               }}
+              className="border-gray-300 dark:border-gray-700 transition-colors duration-200"
             >
               Reset
             </Button>
             <Button
               variant="outline"
               onClick={exportToCSV}
+              className="border-gray-300 dark:border-gray-700 transition-colors duration-200"
             >
               <FileDown className="h-4 w-4 mr-2" />
               Export
@@ -643,6 +802,7 @@ export default function InvoicesPage() {
             <Button
               variant="outline"
               onClick={handleRefresh}
+              className="border-gray-300 dark:border-gray-700 transition-colors duration-200"
             >
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
@@ -651,158 +811,182 @@ export default function InvoicesPage() {
         </div>
       </Card>
       
-      {/* Quick Actions */}
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={() => router.push('/invoices/create')}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Invoice
-        </Button>
-        <Button variant="outline" onClick={() => router.push('/invoices/scan')}>
-          <ScanLine className="h-4 w-4 mr-2" />
-          Scan Invoice
-        </Button>
-        <Button variant="outline" onClick={() => router.push('/invoices/manual')}>
-          <Pencil className="h-4 w-4 mr-2" />
-          Manual Entry
-        </Button>
-      </div>
+      {/* Add error message display */}
+      {error && (
+        <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 dark:bg-red-900/20 dark:border-red-600 rounded-r-md shadow-sm transition-colors duration-200">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <AlertTriangle className="h-5 w-5 text-red-400 dark:text-red-500 transition-colors duration-200" />
+            </div>
+            <div className="ml-3 flex items-center justify-between w-full">
+              <p className="text-sm text-red-700 dark:text-red-400 transition-colors duration-200">
+                {error}
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleRetry}
+                disabled={retryCount >= 3}
+                className="ml-4 border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200"
+              >
+                {retryCount >= 3 ? 'Too many retries' : 'Retry'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Invoices Table */}
-      <Card className="p-6">
+      <Card className="p-6 border border-gray-200 dark:border-gray-800 shadow-sm transition-all duration-200">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium">All Invoices</h3>
-          <div className="text-sm text-gray-500">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 transition-colors duration-200">All Invoices</h3>
+          <div className="text-sm text-gray-500 dark:text-gray-400 transition-colors duration-200">
             {filteredInvoices.length} {filteredInvoices.length === 1 ? 'invoice' : 'invoices'} found
           </div>
         </div>
         
         {loading ? (
           <div className="flex justify-center py-8">
-            <div className="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full"></div>
-          </div>
-        ) : error ? (
-          <div className="text-center py-8 text-red-500">
-            <p>{error}</p>
-            <Button 
-              variant="outline" 
-              onClick={handleRefresh}
-              className="mt-4"
-            >
-              Try Again
-            </Button>
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
           </div>
         ) : filteredInvoices.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            No invoices found matching your criteria
+          <div className="text-center py-12 px-4">
+            <div className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600 mb-4 transition-colors duration-200">
+              <FileText className="h-12 w-12" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2 transition-colors duration-200">No invoices found</h3>
+            <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto transition-colors duration-200">
+              No invoices match your current filter criteria. Try adjusting your filters or create a new invoice.
+            </p>
+            <Button
+              onClick={() => router.push('/invoices/create')}
+              className="mt-4"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Invoice
+            </Button>
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead 
+            <div className="overflow-x-auto rounded-md border border-gray-200 dark:border-gray-800 transition-colors duration-200">
+              <Table className="w-full">
+                <TableHead>
+                  <TableRow className="bg-gray-50 dark:bg-gray-900/50 transition-colors duration-200">
+                    <TableHeader 
                       onClick={() => handleSort('invoiceNumber')}
-                      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                      className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors duration-200 py-3 px-4 text-left"
                     >
-                      <div className="flex items-center">
+                      <div className="flex items-center font-medium text-gray-700 dark:text-gray-300 transition-colors duration-200">
                         Invoice #
                         <SortIndicator field="invoiceNumber" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('date')}
-                      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                      className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors duration-200 py-3 px-4 text-left"
                     >
-                      <div className="flex items-center">
+                      <div className="flex items-center font-medium text-gray-700 dark:text-gray-300 transition-colors duration-200">
                         Date
                         <SortIndicator field="date" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('customerName')}
-                      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                      className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors duration-200 py-3 px-4 text-left"
                     >
-                      <div className="flex items-center">
+                      <div className="flex items-center font-medium text-gray-700 dark:text-gray-300 transition-colors duration-200">
                         Customer
                         <SortIndicator field="customerName" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('totalAmount')}
-                      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                      className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors duration-200 py-3 px-4 text-left"
                     >
-                      <div className="flex items-center">
+                      <div className="flex items-center font-medium text-gray-700 dark:text-gray-300 transition-colors duration-200">
                         Amount
                         <SortIndicator field="totalAmount" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('dueDate')}
-                      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                      className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors duration-200 py-3 px-4 text-left"
                     >
-                      <div className="flex items-center">
+                      <div className="flex items-center font-medium text-gray-700 dark:text-gray-300 transition-colors duration-200">
                         Due Date
                         <SortIndicator field="dueDate" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('status')}
-                      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                      className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors duration-200 py-3 px-4 text-left"
                     >
-                      <div className="flex items-center">
+                      <div className="flex items-center font-medium text-gray-700 dark:text-gray-300 transition-colors duration-200">
                         Status
                         <SortIndicator field="status" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('source')}
-                      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                      className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors duration-200 py-3 px-4 text-left"
                     >
-                      <div className="flex items-center">
+                      <div className="flex items-center font-medium text-gray-700 dark:text-gray-300 transition-colors duration-200">
                         Source
                         <SortIndicator field="source" />
                       </div>
-                    </TableHead>
-                    <TableHead>Actions</TableHead>
+                    </TableHeader>
+                    <TableHeader className="bg-gray-50 dark:bg-gray-900/50 transition-colors duration-200 py-3 px-4 text-left">
+                      <div className="flex items-center font-medium text-gray-700 dark:text-gray-300 transition-colors duration-200">
+                        Actions
+                      </div>
+                    </TableHeader>
                   </TableRow>
-                </TableHeader>
+                </TableHead>
                 <TableBody>
-                  {paginatedInvoices.map((invoice) => (
-                    <TableRow key={invoice.id}>
-                      <TableCell>
-                        <Link href={`/invoices/${invoice.id}`} className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                  {paginatedInvoices.map((invoice, index) => (
+                    <TableRow 
+                      key={invoice.id}
+                      className={`${
+                        index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-900/70'
+                      } hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors duration-200`}
+                    >
+                      <TableCell className="py-3 px-4">
+                        <Link href={`/invoices/${invoice.id}`} className="text-blue-600 dark:text-blue-400 hover:underline font-medium transition-colors duration-200">
                           {invoice.invoiceNumber}
                         </Link>
                       </TableCell>
-                      <TableCell>{formatDate(invoice.date)}</TableCell>
-                      <TableCell>
-                        <div className="font-medium">{invoice.customerName}</div>
-                        <div className="text-sm text-gray-500">{invoice.vendorName}</div>
+                      <TableCell className="py-3 px-4">{formatDate(invoice.date)}</TableCell>
+                      <TableCell className="py-3 px-4">
+                        <div className="font-medium text-gray-900 dark:text-gray-100 transition-colors duration-200">{invoice.customerName}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400 transition-colors duration-200">{invoice.vendorName}</div>
                       </TableCell>
-                      <TableCell className="font-medium">{formatCurrency(invoice.totalAmount)}</TableCell>
-                      <TableCell>{formatDate(invoice.dueDate)}</TableCell>
-                      <TableCell>
+                      <TableCell className="py-3 px-4 font-medium text-gray-900 dark:text-gray-100 transition-colors duration-200">{formatCurrency(invoice.totalAmount)}</TableCell>
+                      <TableCell className="py-3 px-4 text-gray-700 dark:text-gray-300 transition-colors duration-200">{formatDate(invoice.dueDate)}</TableCell>
+                      <TableCell className="py-3 px-4">
                         <StatusBadge status={invoice.status || 'pending'} />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-3 px-4">
                         <SourceBadge source={invoice.source} />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-3 px-4">
                         <div className="flex space-x-2">
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="icon"
                             onClick={() => router.push(`/invoices/${invoice.id}`)}
+                            className="h-8 w-8 text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors duration-200"
+                            title="View Invoice"
                           >
-                            View
+                            <Eye className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="icon"
                             onClick={() => router.push(`/invoices/${invoice.id}/edit`)}
+                            className="h-8 w-8 text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors duration-200"
+                            title="Edit Invoice"
                           >
-                            Edit
+                            <Edit className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -813,18 +997,19 @@ export default function InvoicesPage() {
             </div>
             
             {/* Pagination */}
-            <div className="mt-6 flex items-center justify-between">
-              <p className="text-sm text-gray-700 dark:text-gray-400">
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+              <p className="text-sm text-gray-700 dark:text-gray-400 transition-colors duration-200">
                 Showing <span className="font-medium">{Math.min((currentPage - 1) * itemsPerPage + 1, invoices.length)}</span> to{' '}
                 <span className="font-medium">{Math.min(currentPage * itemsPerPage, invoices.length)}</span> of{' '}
                 <span className="font-medium">{invoices.length}</span> results
               </p>
-              <div className="flex space-x-1">
+              <div className="flex flex-wrap gap-1">
                 <Button
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1 || loading}
                   size="sm"
                   variant="outline"
+                  className="border-gray-300 dark:border-gray-700 transition-colors duration-200"
                 >
                   Previous
                 </Button>
@@ -835,6 +1020,9 @@ export default function InvoicesPage() {
                     size="sm"
                     variant={currentPage === i + 1 ? 'default' : 'outline'}
                     disabled={loading}
+                    className={currentPage === i + 1 ? 
+                      'transition-colors duration-200' : 
+                      'border-gray-300 dark:border-gray-700 transition-colors duration-200'}
                   >
                     {i + 1}
                   </Button>
@@ -844,6 +1032,7 @@ export default function InvoicesPage() {
                   disabled={currentPage === (totalPages || 1) || loading}
                   size="sm"
                   variant="outline"
+                  className="border-gray-300 dark:border-gray-700 transition-colors duration-200"
                 >
                   Next
                 </Button>
@@ -853,21 +1042,60 @@ export default function InvoicesPage() {
         )}
       </Card>
       
+      {/* Add this button somewhere in the UI */}
+      <div className="flex flex-wrap gap-2 mt-4">
+        <Button 
+          onClick={() => handleViewSampleInvoice('standard')}
+          variant="outline"
+          size="sm"
+        >
+          Standard Invoice
+        </Button>
+        <Button 
+          onClick={() => handleViewSampleInvoice('premium')}
+          variant="outline"
+          size="sm"
+        >
+          Premium Invoice
+        </Button>
+        <Button 
+          onClick={() => handleViewSampleInvoice('maintenance')}
+          variant="outline"
+          size="sm"
+        >
+          Maintenance Invoice
+        </Button>
+        <Button 
+          onClick={() => handleViewSampleInvoice('consulting')}
+          variant="outline"
+          size="sm"
+        >
+          Consulting Invoice
+        </Button>
+        <Button 
+          onClick={() => handleViewSampleInvoice('hardware')}
+          variant="outline"
+          size="sm"
+        >
+          Hardware Invoice
+        </Button>
+      </div>
+      
       {isGuest && (
-        <div className="mt-6 bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 rounded">
+        <div className="mt-6 bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 dark:border-yellow-600 p-4 rounded-r-md shadow-sm transition-colors duration-200">
           <div className="flex">
             <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <svg className="h-5 w-5 text-yellow-400 dark:text-yellow-500 transition-colors duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9z" clipRule="evenodd" />
               </svg>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Guest Mode Notice</h3>
-              <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-400">
+              <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-300 transition-colors duration-200">Guest Mode Notice</h3>
+              <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-400 transition-colors duration-200">
                 <p>
-                  In guest mode, you can view sample invoices and try out features, but changes won't be saved. 
+                  In guest mode, you can view sample invoices and try out features, but changes won&apos;t be saved. 
                   <br /> 
-                  <a href="/auth/login" className="font-medium underline">Sign in</a> or <a href="/auth/register" className="font-medium underline">create an account</a> to save your data.
+                  <a href="/auth/login" className="font-medium underline hover:text-yellow-800 dark:hover:text-yellow-300 transition-colors duration-200">Sign in</a> or <a href="/auth/register" className="font-medium underline hover:text-yellow-800 dark:hover:text-yellow-300 transition-colors duration-200">create an account</a> to save your data.
                 </p>
               </div>
             </div>

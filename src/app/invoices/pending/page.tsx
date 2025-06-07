@@ -337,9 +337,9 @@ export default function PendingInvoicesPage() {
           <>
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
+                <TableHead>
                   <TableRow>
-                    <TableHead 
+                    <TableHeader 
                       onClick={() => handleSort('invoiceNumber')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -347,8 +347,8 @@ export default function PendingInvoicesPage() {
                         Invoice #
                         <SortIndicator field="invoiceNumber" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('date')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -356,8 +356,8 @@ export default function PendingInvoicesPage() {
                         Date
                         <SortIndicator field="date" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('customerName')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -365,8 +365,8 @@ export default function PendingInvoicesPage() {
                         Customer
                         <SortIndicator field="customerName" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('totalAmount')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -374,8 +374,8 @@ export default function PendingInvoicesPage() {
                         Amount
                         <SortIndicator field="totalAmount" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('dueDate')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -383,11 +383,19 @@ export default function PendingInvoicesPage() {
                         Due Date
                         <SortIndicator field="dueDate" />
                       </div>
-                    </TableHead>
-                    <TableHead>Days Until Due</TableHead>
-                    <TableHead>Actions</TableHead>
+                    </TableHeader>
+                    <TableHeader>
+                      <div className="flex items-center">
+                        Days Until Due
+                      </div>
+                    </TableHeader>
+                    <TableHeader>
+                      <div className="flex items-center">
+                        Actions
+                      </div>
+                    </TableHeader>
                   </TableRow>
-                </TableHeader>
+                </TableHead>
                 <TableBody>
                   {paginatedInvoices.map((invoice) => {
                     const daysUntilDue = getDaysUntilDue(invoice.dueDate);

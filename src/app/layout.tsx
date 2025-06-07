@@ -5,9 +5,8 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from '@/lib/ThemeProvider';
 import ClerkErrorProvider from '@/providers/ClerkErrorProvider';
+import GlobalErrorHandler from '@/providers/GlobalErrorHandler';
 import NextAuthProvider from '@/lib/auth/Provider';
-import HydrationManager from '@/components/HydrationManager';
-import Script from 'next/script';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -32,22 +31,6 @@ export const metadata: Metadata = {
   description: 'Streamline your inventory management and invoicing with StockSage.',
 };
 
-// Hydration fix script
-const hydrationScript = `
-(function() {
-  // This script runs before hydration
-  document.documentElement.setAttribute('data-hydrating', 'true');
-  
-  // Listen for hydration completion
-  window.addEventListener('load', function() {
-    // Delay slightly to ensure React is fully hydrated
-    setTimeout(function() {
-      document.documentElement.removeAttribute('data-hydrating');
-    }, 100);
-  });
-})();
-`;
-
 export default function RootLayout({
   children,
 }: {
@@ -57,15 +40,19 @@ export default function RootLayout({
   const isProduction = process.env.NODE_ENV === 'production';
   const shouldUseMinimalLayout = isProduction && !hasValidEnv();
   
+  // Define common class for html element - avoid adding hydrated class that could cause mismatches
+  const htmlClass = `${inter.variable} h-full transition-colors duration-300`;
+  
   if (shouldUseMinimalLayout) {
     return (
-      <html lang="en" className={`${inter.variable} h-full`}>
-        <body className="h-full bg-gray-50 dark:bg-black dark:text-white">
-          <Script id="hydration-fix" strategy="beforeInteractive">{hydrationScript}</Script>
+      <html lang="en" className={htmlClass}>
+        <body className="h-full bg-gray-50 dark:bg-black dark:text-white transition-colors duration-300">
           <ThemeProvider>
-            <NextAuthProvider>
-              {children}
-            </NextAuthProvider>
+            <GlobalErrorHandler>
+              <NextAuthProvider>
+                {children}
+              </NextAuthProvider>
+            </GlobalErrorHandler>
             <Toaster position="top-right" />
           </ThemeProvider>
         </body>
@@ -74,9 +61,8 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
-      <body className="h-full bg-gray-50 dark:bg-black dark:text-white">
-        <Script id="hydration-fix" strategy="beforeInteractive">{hydrationScript}</Script>
+    <html lang="en" className={htmlClass}>
+      <body className="h-full bg-gray-50 dark:bg-black dark:text-white transition-colors duration-300">
         <ThemeProvider>
           <ClerkProvider 
             publishableKey={publishableKey}
@@ -86,12 +72,13 @@ export default function RootLayout({
               }
             }}
           >
-            <ClerkErrorProvider>
-              <NextAuthProvider>
-                <HydrationManager />
-                {children}
-              </NextAuthProvider>
-            </ClerkErrorProvider>
+            <GlobalErrorHandler>
+              <ClerkErrorProvider>
+                <NextAuthProvider>
+                  {children}
+                </NextAuthProvider>
+              </ClerkErrorProvider>
+            </GlobalErrorHandler>
             <Toaster position="top-right" />
           </ClerkProvider>
         </ThemeProvider>

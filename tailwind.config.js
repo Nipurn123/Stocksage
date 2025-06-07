@@ -1,5 +1,8 @@
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+import forms from '@tailwindcss/forms';
+import aspectRatio from '@tailwindcss/aspect-ratio';
+
+export default {
   darkMode: 'class',
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx}',
@@ -87,7 +90,7 @@ module.exports = {
     },
   },
   plugins: [
-    require('@tailwindcss/forms'),
-    require('@tailwindcss/aspect-ratio'),
+    forms,
+    aspectRatio,
   ],
 } 

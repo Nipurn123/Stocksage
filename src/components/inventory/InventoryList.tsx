@@ -2,57 +2,171 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth, useUser } from '@clerk/nextjs';
 import Link from 'next/link';
-import { Search, Filter, Edit, Trash2, Plus, AlertCircle } from 'lucide-react';
+import { Search, Filter, Edit, Trash2, Plus, AlertCircle, FileText } from 'lucide-react';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui/Table';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Pagination } from '@/components/ui/Pagination';
 import FilterDropdown from '@/components/ui/FilterDropdown';
+import ProductQuickEdit from './ProductQuickEdit';
 import { formatCurrency } from '@/lib/utils';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 interface Product {
   id: string;
   name: string;
   sku: string;
   price: number;
-  stockLevel: number;
-  minStockLevel: number;
+  currentStock?: number;
+  stockLevel?: number;  // For compatibility with older code
+  minStockLevel?: number;
+  reorderLevel?: number; // For compatibility with older code
   category: string;
+  userId?: string;
   createdAt: string;
   updatedAt: string;
-  currentStock?: number;
-  reorderLevel?: number;
 }
 
 interface InventoryListProps {
   initialProducts?: Product[];
+  batchOperationsEnabled?: boolean;
+  onProductsUpdated?: () => void;
+  refreshTrigger?: boolean;
+  onRefreshComplete?: () => void;
+  onProductsLoaded?: (products: Product[]) => void;
 }
 
-export default function InventoryList({ initialProducts = [] }: InventoryListProps) {
+export default function InventoryList({ 
+  initialProducts = [],
+  batchOperationsEnabled = false,
+  onProductsUpdated,
+  refreshTrigger = false,
+  onRefreshComplete,
+  onProductsLoaded
+}: InventoryListProps) {
   const router = useRouter();
-  const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [loading, setLoading] = useState<boolean>(initialProducts.length === 0);
+  const { isSignedIn, getToken } = useAuth();
+  const { user } = useUser();
+
+  // Initialize state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [filterOpen, setFilterOpen] = useState<boolean>(false);
-  const [filters, setFilters] = useState<{
-    category: string[];
-    stockStatus: string[];
-    priceRange: { min: number | null; max: number | null };
-    dateRange: { from: Date | null; to: Date | null };
-  }>({
-    category: [],
-    stockStatus: [],
-    priceRange: { min: null, max: null },
-    dateRange: { from: null, to: null },
+  // Add missing properties to initial product data for compatibility
+  const initialProductsWithDefaults = initialProducts.map(product => ({
+    ...product,
+    userId: product.userId || user?.id || 'unknown',
+    currentStock: product.currentStock !== undefined ? product.currentStock : product.stockLevel,
+    minStockLevel: product.minStockLevel !== undefined ? product.minStockLevel : product.reorderLevel,
+  }));
+  const [products, setProducts] = useState<Product[]>(initialProductsWithDefaults);
+  const [filters, setFilters] = useState({
+    category: [] as string[],
+    stockStatus: [] as string[],
+    priceRange: {
+      min: null as number | null,
+      max: null as number | null,
+    },
+    dateRange: {
+      from: null as Date | null,
+      to: null as Date | null,
+    },
   });
   const [pagination, setPagination] = useState({
     currentPage: 1,
-    totalPages: 1,
     itemsPerPage: 10,
   });
+  const [notification, setNotification] = useState<{ type: string; message: string } | null>(null);
+  const [quickEditProduct, setQuickEditProduct] = useState<Product | null>(null);
+
+  // Handle refresh trigger from parent component
+  useEffect(() => {
+    if (refreshTrigger) {
+      fetchProducts();
+      if (onRefreshComplete) {
+        onRefreshComplete();
+      }
+    }
+  }, [refreshTrigger]);
+
+  // Function to fetch products from the API
+  const fetchProducts = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Check if user is authenticated
+      if (!isSignedIn) {
+        router.push('/auth/login?redirect=/inventory');
+        return;
+      }
+
+      // Get auth token from Clerk
+      const token = await getToken();
+      
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+      
+      const response = await fetch('/api/inventory', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (response.status === 401) {
+        router.push('/auth/login?redirect=/inventory');
+        return;
+      }
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        // Add missing properties to product data for compatibility
+        const productsWithDefaults = result.data.map((product: Product) => ({
+          ...product,
+          userId: product.userId || user?.id || 'unknown',
+          currentStock: product.currentStock !== undefined ? product.currentStock : product.stockLevel,
+          minStockLevel: product.minStockLevel !== undefined ? product.minStockLevel : product.reorderLevel,
+        }));
+
+        setProducts(productsWithDefaults);
+        setPagination(prev => ({
+          ...prev,
+          totalPages: Math.ceil(result.pagination?.total || result.data?.length || 0 / prev.itemsPerPage),
+        }));
+        
+        // Notify parent component about loaded products
+        if (onProductsLoaded) {
+          onProductsLoaded(productsWithDefaults);
+        }
+        
+        // If batch operations is enabled, notify parent that products were updated
+        if (batchOperationsEnabled && onProductsUpdated) {
+          onProductsUpdated();
+        }
+      } else {
+        throw new Error(result.error || 'Failed to fetch products');
+      }
+    } catch (error: any) {
+      console.error('Error fetching products:', error);
+      setError(error.message || 'Failed to load products. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Count active filters
   const activeFilterCount = 
@@ -64,37 +178,10 @@ export default function InventoryList({ initialProducts = [] }: InventoryListPro
   // Fetch products
   useEffect(() => {
     if (initialProducts.length > 0) return;
-
-    const fetchProducts = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch('/api/inventory');
-        if (!response.ok) {
-          throw new Error('Failed to fetch products');
-        }
-        
-        const result = await response.json();
-        
-        if (result.success) {
-          setProducts(result.data);
-          setPagination(prev => ({
-            ...prev,
-            totalPages: Math.ceil(result.pagination.total / prev.itemsPerPage),
-          }));
-        } else {
-          throw new Error(result.error || 'Failed to fetch products');
-        }
-      } catch (error) {
-        console.error('Error fetching products:', error);
-        setError('Failed to load products. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
+    
     fetchProducts();
-  }, [initialProducts.length]);
-
+  }, [initialProducts.length, isSignedIn, getToken, router, user?.id]);
+  
   // Filter and search products
   const filteredProducts = products.filter(product => {
     // Search filter
@@ -113,9 +200,12 @@ export default function InventoryList({ initialProducts = [] }: InventoryListPro
 
     // Stock status filter
     if (filters.stockStatus.length > 0) {
-      const isOutOfStock = product.stockLevel === 0;
-      const isLowStock = product.stockLevel > 0 && product.stockLevel <= product.minStockLevel;
-      const isInStock = product.stockLevel > product.minStockLevel;
+      const stockLevel = getStockLevel(product);
+      const minStockLevel = getMinStockLevel(product);
+      
+      const isOutOfStock = stockLevel === 0;
+      const isLowStock = stockLevel > 0 && stockLevel <= minStockLevel;
+      const isInStock = stockLevel > minStockLevel;
 
       const statusMatch = (
         (filters.stockStatus.includes('out-of-stock') && isOutOfStock) ||
@@ -163,6 +253,42 @@ export default function InventoryList({ initialProducts = [] }: InventoryListPro
       currentPage: page,
     }));
   };
+  
+  const handleEdit = (id: string) => {
+    router.push(`/inventory/${id}/edit`);
+  };
+  
+  const handleQuickEdit = (product: Product) => {
+    // Check if user is authenticated before opening edit modal
+    if (!isSignedIn) {
+      router.push('/auth/login?redirect=/inventory');
+      return;
+    }
+    
+    // For quick edit, open the modal with the selected product
+    setQuickEditProduct(product);
+  };
+  
+  const handleQuickEditClose = () => {
+    setQuickEditProduct(null);
+  };
+  
+  const handleQuickEditSuccess = () => {
+    setNotification({
+      type: 'success',
+      message: 'Product successfully updated',
+    });
+    
+    setTimeout(() => {
+      setNotification(null);
+    }, 3000);
+    
+    setQuickEditProduct(null);
+    
+    if (isSignedIn) {
+      fetchProducts();
+    }
+  };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this product?')) {
@@ -170,43 +296,179 @@ export default function InventoryList({ initialProducts = [] }: InventoryListPro
     }
 
     try {
-      const response = await fetch(`/api/inventory/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete product');
+      setLoading(true);
+      
+      // Check if user is authenticated
+      if (!isSignedIn) {
+        router.push('/auth/login?redirect=/inventory');
+        return;
       }
 
-      // Update products list
+      // Get auth token from Clerk
+      const token = await getToken();
+      
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+      
+      const response = await fetch(`/api/inventory/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        router.push('/auth/login?redirect=/inventory');
+        return;
+      }
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete product');
+      }
+
+      // Update products list by filtering out the deleted product
       setProducts(products.filter(product => product.id !== id));
+      
+      // Show success message
+      setNotification({
+        type: 'success',
+        message: 'Product successfully deleted',
+      });
+      
+      // Clear notification after 3 seconds
+      setTimeout(() => {
+        setNotification(null);
+      }, 3000);
     } catch (error) {
       console.error('Error deleting product:', error);
-      setError('Failed to delete product. Please try again.');
+      setError(error instanceof Error ? error.message : 'Failed to delete product. Please try again.');
+      
+      // Show error notification
+      setNotification({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to delete product',
+      });
+      
+      // Clear notification after 5 seconds
+      setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getStockStatusBadge = (product: Product) => {
-    if (product.stockLevel === undefined && product.currentStock !== undefined) {
-      // Handle API response that uses currentStock instead of stockLevel
-      if (product.currentStock === 0) {
-        return <Badge variant="danger">Out of Stock</Badge>;
-      }
-      if (product.currentStock <= (product.reorderLevel || product.minStockLevel || 5)) {
-        return <Badge variant="warning">Low Stock</Badge>;
-      }
-      return <Badge variant="success">In Stock</Badge>;
+  const exportToPDF = () => {
+    try {
+      // Create a new PDF document
+      const doc = new jsPDF();
+      const tableColumn = ["Product", "SKU", "Price", "Stock", "Category", "Status"];
+      
+      // Map the products to the format needed for the PDF
+      const tableRows = filteredProducts.map(product => {
+        const stockLevel = getStockLevel(product);
+        const minLevel = getMinStockLevel(product);
+        
+        let status = "In Stock";
+        if (stockLevel === 0) {
+          status = "Out of Stock";
+        } else if (stockLevel <= minLevel) {
+          status = "Low Stock";
+        }
+        
+        return [
+          product.name,
+          product.sku,
+          formatCurrency(product.price),
+          stockLevel.toString(),
+          product.category,
+          status
+        ];
+      });
+      
+      // Add company info and title
+      doc.setFontSize(20);
+      doc.text("Inventory Report", 14, 22);
+      
+      // Add date
+      doc.setFontSize(10);
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
+      
+      // Add total count
+      doc.text(`Total Products: ${filteredProducts.length}`, 14, 36);
+      
+      // Use the imported autoTable function instead
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 40,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [66, 66, 66] }
+      });
+      
+      // Save the PDF
+      doc.save(`inventory-report-${new Date().toISOString().split('T')[0]}.pdf`);
+      
+      // Show success notification
+      setNotification({
+        type: 'success',
+        message: 'Inventory report successfully exported',
+      });
+      
+      // Clear notification after 3 seconds
+      setTimeout(() => {
+        setNotification(null);
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      
+      // Show error notification
+      setNotification({
+        type: 'error',
+        message: 'Failed to export inventory report',
+      });
+      
+      // Clear notification after 5 seconds
+      setTimeout(() => {
+        setNotification(null);
+      }, 5000);
     }
+  };
+
+  // Helper function to get stock level with proper fallbacks
+  const getStockLevel = (product: Product): number => {
+    return product.currentStock !== undefined ? product.currentStock : (product.stockLevel || 0);
+  };
+
+  // Helper function to get min stock level with proper fallbacks
+  const getMinStockLevel = (product: Product): number => {
+    return product.minStockLevel !== undefined ? product.minStockLevel : (product.reorderLevel || 5);
+  };
+
+  const getStockStatusBadge = (product: Product) => {
+    const stockLevel = getStockLevel(product);
+    const minLevel = getMinStockLevel(product);
     
-    // Use stockLevel property
-    if (product.stockLevel === 0) {
+    if (stockLevel === 0) {
       return <Badge variant="danger">Out of Stock</Badge>;
     }
-    if (product.stockLevel <= product.minStockLevel) {
+    if (stockLevel <= minLevel) {
       return <Badge variant="warning">Low Stock</Badge>;
     }
     return <Badge variant="success">In Stock</Badge>;
   };
+
+  // Notify parent when products change if needed
+  useEffect(() => {
+    if (batchOperationsEnabled && onProductsUpdated) {
+      onProductsUpdated();
+    }
+  }, [products, batchOperationsEnabled]);
 
   if (loading) {
     return <div className="flex justify-center p-8">Loading inventory...</div>;
@@ -230,6 +492,27 @@ export default function InventoryList({ initialProducts = [] }: InventoryListPro
 
   return (
     <div className="space-y-4">
+      {notification && (
+        <div className={`p-4 rounded-md mb-4 ${
+          notification.type === 'success' 
+            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' 
+            : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+        }`}>
+          <div className="flex items-center">
+            {notification.type === 'success' ? (
+              <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            )}
+            <p>{notification.message}</p>
+          </div>
+        </div>
+      )}
+      
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
@@ -264,6 +547,16 @@ export default function InventoryList({ initialProducts = [] }: InventoryListPro
               />
             )}
           </div>
+          
+          <Button 
+            variant="outline" 
+            onClick={exportToPDF}
+            className="flex items-center gap-2"
+            disabled={filteredProducts.length === 0}
+          >
+            <FileText size={16} />
+            <span>Export</span>
+          </Button>
         </div>
       </div>
 
@@ -276,9 +569,9 @@ export default function InventoryList({ initialProducts = [] }: InventoryListPro
             </p>
           ) : (
             <div className="mt-4">
-              <Button variant="primary" onClick={() => router.push('/inventory/add')}>
-                Add your first product
-              </Button>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Your products should load automatically. If you don't see any data, please try refreshing the page.
+              </p>
             </div>
           )}
         </div>
@@ -301,13 +594,16 @@ export default function InventoryList({ initialProducts = [] }: InventoryListPro
                 {paginatedProducts.map((product) => (
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">
-                      <Link href={`/inventory/${product.id}`} className="hover:underline">
+                      <button 
+                        onClick={() => router.push(`/inventory/${product.id}`)} 
+                        className="hover:underline text-left focus:outline-none"
+                      >
                         {product.name}
-                      </Link>
+                      </button>
                     </TableCell>
                     <TableCell>{product.sku}</TableCell>
                     <TableCell>{formatCurrency(product.price)}</TableCell>
-                    <TableCell>{product.stockLevel !== undefined ? product.stockLevel : product.currentStock}</TableCell>
+                    <TableCell>{getStockLevel(product)}</TableCell>
                     <TableCell>
                       <Badge variant="secondary">{product.category}</Badge>
                     </TableCell>
@@ -317,7 +613,7 @@ export default function InventoryList({ initialProducts = [] }: InventoryListPro
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => router.push(`/inventory/${product.id}`)}
+                          onClick={() => handleEdit(product.id)}
                         >
                           <Edit size={16} />
                           <span className="sr-only">Edit</span>
@@ -348,6 +644,23 @@ export default function InventoryList({ initialProducts = [] }: InventoryListPro
             </div>
           )}
         </>
+      )}
+      
+      {/* Quick Edit Modal */}
+      {quickEditProduct && (
+        <ProductQuickEdit
+          productId={quickEditProduct.id}
+          initialData={{
+            name: quickEditProduct.name,
+            sku: quickEditProduct.sku,
+            price: quickEditProduct.price,
+            currentStock: getStockLevel(quickEditProduct),
+            minStockLevel: getMinStockLevel(quickEditProduct),
+            category: quickEditProduct.category,
+          }}
+          onClose={handleQuickEditClose}
+          onSuccess={handleQuickEditSuccess}
+        />
       )}
     </div>
   );

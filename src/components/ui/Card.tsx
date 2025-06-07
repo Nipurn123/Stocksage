@@ -24,21 +24,21 @@ const Card: React.FC<CardProps> = ({
   icon,
 }) => {
   return (
-    <div className={`bg-white dark:bg-black dark:border dark:border-gray-800 shadow rounded-lg overflow-hidden ${className}`}>
+    <div className={`bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-lg overflow-hidden transition-colors duration-300 ${className}`}>
       {(title || subtitle || headerAction || icon) && (
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-start">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-start transition-colors duration-300">
           <div className="flex items-center">
-            {icon && <div className="mr-3 text-gray-500 dark:text-gray-400">{icon}</div>}
+            {icon && <div className="mr-3 text-gray-500 dark:text-gray-400 transition-colors duration-300">{icon}</div>}
             <div>
-              {title && <h3 className="text-lg font-medium text-gray-900 dark:text-white">{title}</h3>}
-              {subtitle && <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>}
+              {title && <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300">{title}</h3>}
+              {subtitle && <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 transition-colors duration-300">{subtitle}</p>}
             </div>
           </div>
           {headerAction && <div className="ml-4">{headerAction}</div>}
         </div>
       )}
       <div className={`${noPadding ? '' : 'px-6 py-4'} ${contentClassName}`}>{children}</div>
-      {footer && <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">{footer}</div>}
+      {footer && <div className="px-6 py-4 bg-gray-50 dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 transition-colors duration-300">{footer}</div>}
     </div>
   );
 };

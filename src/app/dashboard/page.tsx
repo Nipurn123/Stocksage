@@ -1,78 +1,165 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useUser, useAuth } from '@clerk/nextjs';
 import AppLayout from '@/components/layout/AppLayout';
 import { Card, Button, Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui';
 import Link from 'next/link';
 import { ArrowUpRight, BarChart3, Package, ShoppingCart, AlertTriangle, PlusCircle, FileText, PieChart, TrendingUp } from 'lucide-react';
 import { DashboardStats } from '@/types';
+import SafeHydration from '@/components/SafeHydration';
+import { useRouter } from 'next/navigation';
+import AuthRequired from '@/components/AuthRequired';
 
-export default function DashboardPage() {
+// Loading component for Suspense
+function DashboardLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600 mx-auto mb-4"></div>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Loading Dashboard
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">
+          Fetching your data...
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function DashboardContent() {
   const { user } = useUser();
   const { isSignedIn } = useAuth();
+  const router = useRouter();
   const isGuest = user?.publicMetadata.role === 'guest';
   const [dashboardData, setDashboardData] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/dashboard');
+        setError(null);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        const response = await fetch('/api/dashboard', { 
+          signal: controller.signal,
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Authorization': `Bearer ${user?.id || 'guest-user'}`
+          }
+        });
+        
+        clearTimeout(timeoutId);
+        
         if (!response.ok) {
-          throw new Error('Failed to fetch dashboard data');
+          // Handle specific HTTP errors
+          if (response.status === 401) {
+            // If unauthorized, redirect to login
+            router.push('/auth/login?redirect=/dashboard');
+            throw new Error('Please sign in to view dashboard data');
+          } else if (response.status === 403) {
+            throw new Error('You do not have permission to view this data');
+          } else if (response.status === 404) {
+            throw new Error('Dashboard data not found');
+          } else if (response.status >= 500) {
+            throw new Error('Server error, please try again later');
+          } else {
+            throw new Error(`Failed to fetch dashboard data: ${response.status}`);
+          }
         }
+        
         const data = await response.json();
+        
+        if (!data || !data.data) {
+          throw new Error('Invalid data format received from server');
+        }
+        
         setDashboardData(data.data);
-      } catch (error) {
+        // Reset retry count on success
+        setRetryCount(0);
+      } catch (error: any) {
         console.error('Error fetching dashboard data:', error);
+        
+        // Don't show error message for auth errors since we're redirecting
+        if (error.message.includes('Please sign in')) {
+          // Don't set error for auth issues - we're redirecting
+        } else if (error.name === 'AbortError') {
+          setError('Request timed out. Please try again.');
+        } else if (error.message.includes('fetch')) {
+          setError('Network error. Please check your connection.');
+        } else {
+          setError(error.message || 'Failed to load dashboard data');
+        }
+        
+        // Increment retry count
+        setRetryCount(prev => prev + 1);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchDashboardData();
-  }, []);
+    // Only fetch if signed in and we don't have data yet or if we're retrying
+    if (isSignedIn && (!dashboardData || error)) {
+      // If we've tried less than 3 times or it's been more than 10 seconds since the last try
+      if (retryCount < 3) {
+        fetchDashboardData();
+      }
+    }
+    
+    // Set up polling every 5 minutes, but only if we're not in an error state
+    let intervalId: NodeJS.Timeout | null = null;
+    if (isSignedIn && !error) {
+      intervalId = setInterval(() => {
+        fetchDashboardData();
+      }, 5 * 60 * 1000);
+    }
+    
+    // Clean up
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isSignedIn, router, user, dashboardData, error, retryCount]);
 
-  // Format currency function
-  const formatCurrency = (value: number) => {
+  // Add a retry button for user to manually retry
+  const handleRetry = () => {
+    setRetryCount(0);
+    setError(null);
+  };
+
+  // Format currency with a stable output
+  const formatCurrencyStable = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
   };
 
-  // Format date function
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-    }).format(date);
-  };
-
-  // Calculate time difference for recent activities
-  const getTimeAgo = (timestamp: string) => {
+  // Format time with a stable output
+  const getTimeAgoStable = (timestamp: string) => {
+    const date = new Date(timestamp);
     const now = new Date();
-    const time = new Date(timestamp);
-    const diffInMilliseconds = now.getTime() - time.getTime();
-    const diffInMinutes = Math.floor(diffInMilliseconds / (1000 * 60));
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    const diffInDays = Math.floor(diffInHours / 24);
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (diffInMinutes < 60) {
-      return `${diffInMinutes} ${diffInMinutes === 1 ? 'minute' : 'minutes'} ago`;
-    } else if (diffInHours < 24) {
-      return `${diffInHours} ${diffInHours === 1 ? 'hour' : 'hours'} ago`;
-    } else {
-      return `${diffInDays} ${diffInDays === 1 ? 'day' : 'days'} ago`;
-    }
+    if (seconds < 60) return 'Just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
   };
+
+  // Wrap all dynamic content in SafeHydration with appropriate delays
+  const renderDynamicContent = (content: React.ReactNode, delay = 100) => (
+    <SafeHydration fallback={null} delay={delay}>
+      {content}
+    </SafeHydration>
+  );
 
   return (
     <AppLayout>
@@ -81,10 +168,12 @@ export default function DashboardPage() {
         <div className="bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-700 dark:to-purple-900 rounded-xl p-6 shadow-lg text-white">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
             <div>
-              <h1 className="text-3xl font-bold">Welcome back, {user?.firstName || 'User'}</h1>
+              {renderDynamicContent(
+                <h1 className="text-3xl font-bold">Welcome back, {user?.firstName || 'User'}</h1>
+              )}
               <p className="mt-2 text-indigo-100">Here's what's happening with your business today.</p>
             </div>
-            {isGuest && (
+            {isGuest && renderDynamicContent(
               <span className="mt-2 md:mt-0 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-400/20 text-yellow-100 border border-yellow-400/30">
                 Guest Mode
               </span>
@@ -94,27 +183,43 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
               <p className="text-indigo-200 text-sm">Today's Revenue</p>
-              <h3 className="text-2xl font-bold mt-1">{dashboardData?.salesSummary ? formatCurrency(dashboardData.salesSummary.today) : '$0'}</h3>
-              <div className="text-green-300 text-sm mt-2 flex items-center">
-                <TrendingUp className="h-4 w-4 mr-1" />
-                <span>+2.5% from yesterday</span>
-              </div>
+              {renderDynamicContent(
+                <h3 className="text-2xl font-bold mt-1">
+                  {dashboardData?.salesSummary ? formatCurrencyStable(dashboardData.salesSummary.today) : '$0.00'}
+                </h3>
+              )}
+              {renderDynamicContent(
+                <div className="text-green-300 text-sm mt-2 flex items-center">
+                  <TrendingUp className="h-4 w-4 mr-1" />
+                  <span>+2.5% from yesterday</span>
+                </div>
+              )}
             </div>
             
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
               <p className="text-indigo-200 text-sm">Total Products</p>
-              <h3 className="text-2xl font-bold mt-1">{dashboardData?.totalProducts || 0}</h3>
-              <div className="text-indigo-200 text-sm mt-2">
-                <span>{dashboardData?.lowStockItems || 0} low stock items</span>
-              </div>
+              {renderDynamicContent(
+                <h3 className="text-2xl font-bold mt-1">{dashboardData?.totalProducts || 0}</h3>
+              )}
+              {renderDynamicContent(
+                <div className="text-indigo-200 text-sm mt-2">
+                  <span>{dashboardData?.lowStockItems || 0} low stock items</span>
+                </div>
+              )}
             </div>
             
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
               <p className="text-indigo-200 text-sm">Active Orders</p>
-              <h3 className="text-2xl font-bold mt-1">{dashboardData?.activeOrders || 0}</h3>
-              <div className="text-indigo-200 text-sm mt-2">
-                <span>{dashboardData?.recentActivities?.filter(a => a.type === 'order').length || 0} new today</span>
-              </div>
+              {renderDynamicContent(
+                <h3 className="text-2xl font-bold mt-1">{dashboardData?.activeOrders || 0}</h3>
+              )}
+              {renderDynamicContent(
+                <div className="text-indigo-200 text-sm mt-2">
+                  <span>
+                    {dashboardData?.recentActivities?.filter(a => a.type === 'order').length || 0} new today
+                  </span>
+                </div>
+              )}
             </div>
             
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
@@ -139,6 +244,30 @@ export default function DashboardPage() {
               <p className="text-sm text-yellow-700 dark:text-yellow-400">
                 You are currently using <strong>Guest Mode</strong>. Some features may be limited.
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 dark:bg-red-900/20 dark:border-red-600">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <AlertTriangle className="h-5 w-5 text-red-400" />
+            </div>
+            <div className="ml-3 flex items-center justify-between w-full">
+              <p className="text-sm text-red-700 dark:text-red-400">
+                {error}
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleRetry}
+                disabled={retryCount >= 3}
+                className="ml-4"
+              >
+                {retryCount >= 3 ? 'Too many retries' : 'Retry'}
+              </Button>
             </div>
           </div>
         </div>
@@ -195,15 +324,27 @@ export default function DashboardPage() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600 dark:text-gray-400">Today</span>
-                  <span className="text-xl font-semibold">{dashboardData?.salesSummary ? formatCurrency(dashboardData.salesSummary.today) : '$0'}</span>
+                  <span className="text-xl font-semibold">
+                    <SafeHydration fallback="$0">
+                      {dashboardData?.salesSummary ? formatCurrencyStable(dashboardData.salesSummary.today) : '$0.00'}
+                    </SafeHydration>
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600 dark:text-gray-400">This Week</span>
-                  <span className="text-xl font-semibold">{dashboardData?.salesSummary ? formatCurrency(dashboardData.salesSummary.thisWeek) : '$0'}</span>
+                  <span className="text-xl font-semibold">
+                    <SafeHydration fallback="$0">
+                      {dashboardData?.salesSummary ? formatCurrencyStable(dashboardData.salesSummary.thisWeek) : '$0.00'}
+                    </SafeHydration>
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600 dark:text-gray-400">This Month</span>
-                  <span className="text-xl font-semibold">{dashboardData?.salesSummary ? formatCurrency(dashboardData.salesSummary.thisMonth) : '$0'}</span>
+                  <span className="text-xl font-semibold">
+                    <SafeHydration fallback="$0">
+                      {dashboardData?.salesSummary ? formatCurrencyStable(dashboardData.salesSummary.thisMonth) : '$0.00'}
+                    </SafeHydration>
+                  </span>
                 </div>
                 <Link href="/sales" className="block mt-4">
                   <Button variant="secondary" fullWidth>
@@ -236,7 +377,9 @@ export default function DashboardPage() {
                       <div className="mr-2 mt-0.5">{icon}</div>
                       <div>
                         <p className="text-sm text-gray-600 dark:text-gray-400">{activity.description}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-500">{getTimeAgo(activity.timestamp)}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500">
+                          {getTimeAgoStable(activity.timestamp)}
+                        </p>
                       </div>
                     </div>
                   );
@@ -391,7 +534,7 @@ export default function DashboardPage() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold">{formatCurrency(item.product.price * item.soldQuantity)}</p>
+                            <p className="font-semibold">{formatCurrencyStable(item.product.price * item.soldQuantity)}</p>
                             <p className="text-sm text-gray-500">{item.soldQuantity} units sold</p>
                           </div>
                         </div>
@@ -412,7 +555,7 @@ export default function DashboardPage() {
                             <p className="text-sm text-gray-500">{invoice.customerName}</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold">{formatCurrency(invoice.totalAmount)}</p>
+                            <p className="font-semibold">{formatCurrencyStable(invoice.totalAmount)}</p>
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                               invoice.status === 'paid' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
                               invoice.status === 'overdue' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' :
@@ -432,5 +575,15 @@ export default function DashboardPage() {
         </>
       )}
     </AppLayout>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <AuthRequired fallback={<DashboardLoading />}>
+        <DashboardContent />
+      </AuthRequired>
+    </Suspense>
   );
 } 

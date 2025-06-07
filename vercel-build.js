@@ -1,7 +1,5 @@
 // Script to ensure environment variables are set before building
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import { execSync } from 'child_process';
 
 // Define required environment variables with fallbacks
 const requiredEnvVars = {
@@ -26,14 +24,12 @@ const requiredEnvVars = {
 
 // Check for missing environment variables and apply fallbacks
 let missingVars = [];
-let updatedVars = false;
 
 Object.entries(requiredEnvVars).forEach(([key, fallbackValue]) => {
   if (!process.env[key]) {
     console.log(`Setting missing environment variable: ${key}`);
     process.env[key] = fallbackValue;
     missingVars.push(key);
-    updatedVars = true;
   }
 });
 

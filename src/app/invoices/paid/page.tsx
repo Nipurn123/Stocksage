@@ -339,9 +339,9 @@ export default function PaidInvoicesPage() {
           <>
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
+                <TableHead>
                   <TableRow>
-                    <TableHead 
+                    <TableHeader 
                       onClick={() => handleSort('invoiceNumber')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -349,8 +349,8 @@ export default function PaidInvoicesPage() {
                         Invoice #
                         <SortIndicator field="invoiceNumber" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('date')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -358,8 +358,8 @@ export default function PaidInvoicesPage() {
                         Date
                         <SortIndicator field="date" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('customerName')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -367,8 +367,8 @@ export default function PaidInvoicesPage() {
                         Customer
                         <SortIndicator field="customerName" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('totalAmount')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -376,8 +376,8 @@ export default function PaidInvoicesPage() {
                         Amount
                         <SortIndicator field="totalAmount" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('paymentDate')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -385,11 +385,19 @@ export default function PaidInvoicesPage() {
                         Payment Date
                         <SortIndicator field="paymentDate" />
                       </div>
-                    </TableHead>
-                    <TableHead>Payment Method</TableHead>
-                    <TableHead>Actions</TableHead>
+                    </TableHeader>
+                    <TableHeader>
+                      <div className="flex items-center">
+                        Payment Method
+                      </div>
+                    </TableHeader>
+                    <TableHeader>
+                      <div className="flex items-center">
+                        Actions
+                      </div>
+                    </TableHeader>
                   </TableRow>
-                </TableHeader>
+                </TableHead>
                 <TableBody>
                   {paginatedInvoices.map((invoice) => (
                     <TableRow key={invoice.id}>

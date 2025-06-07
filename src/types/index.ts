@@ -50,6 +50,8 @@ export interface Product {
   name: string;
   description?: string;
   sku: string;
+  barcode?: string;
+  qrCodeData?: string;
   price: number;
   cost?: number;
   currentStock: number;

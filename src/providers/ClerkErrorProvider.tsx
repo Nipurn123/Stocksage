@@ -21,12 +21,31 @@ export default function ClerkErrorProvider({ children }: ClerkErrorProviderProps
           errorString.includes('Unable to authenticate this browser') ||
           errorString.includes('Authentication issue detected') ||
           errorString.includes('Check your Clerk cookies') ||
-          errorString.includes('Missing publishableKey')
+          errorString.includes('Missing publishableKey') ||
+          errorString.includes('API error')
         ) {
           setHasAuthError(true);
         }
         originalConsoleError.apply(console, args);
       };
+
+      // Handle unhandled promise rejections related to auth
+      const handleRejection = (event: PromiseRejectionEvent) => {
+        const reason = event.reason?.toString() || '';
+        if (
+          reason.includes('authentication') ||
+          reason.includes('auth') ||
+          reason.includes('clerk') ||
+          reason.includes('API error')
+        ) {
+          console.log('Caught authentication-related promise rejection:', reason);
+          setHasAuthError(true);
+          // Prevent the default error from propagating to the console
+          event.preventDefault();
+        }
+      };
+
+      window.addEventListener('unhandledrejection', handleRejection);
 
       // Also check for Clerk error elements in the DOM
       const observer = new MutationObserver((mutations) => {
@@ -60,6 +79,7 @@ export default function ClerkErrorProvider({ children }: ClerkErrorProviderProps
       return () => {
         console.error = originalConsoleError;
         observer.disconnect();
+        window.removeEventListener('unhandledrejection', handleRejection);
       };
     };
 

@@ -1,17 +1,22 @@
 'use client';
 
 import React, { useState } from 'react';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Button,
-  Calendar,
-  Input,
-  Label,
+import { 
+  Button, 
+  Popover, 
+  PopoverContent, 
+  PopoverTrigger, 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger,
+  Calendar, 
+  Input, 
+  Label, 
+  Badge 
 } from '@/components/ui';
-import { FunnelIcon, XMarkIcon, CalendarIcon, CurrencyDollarIcon, BuildingStorefrontIcon } from '@heroicons/react/24/outline';
-import { format, isValid } from 'date-fns';
+import { Filter, Calendar as CalendarIcon, DollarSign, Users } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface FilterDropdownProps {
   onApplyFilters: (filters: {
@@ -22,28 +27,13 @@ interface FilterDropdownProps {
   }) => void;
 }
 
-export default function FilterDropdown({ onApplyFilters }: FilterDropdownProps) {
+export function FilterDropdown({ onApplyFilters }: FilterDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
   const [minAmount, setMinAmount] = useState<string>('');
   const [maxAmount, setMaxAmount] = useState<string>('');
   const [vendorFilter, setVendorFilter] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'date' | 'amount' | 'vendor'>('date');
-  
-  // Check if any filters are applied
-  const hasActiveFilters = !!(
-    (dateRange.from && dateRange.to) || 
-    minAmount || 
-    maxAmount || 
-    vendorFilter
-  );
-
-  // Count active filters
-  const activeFilterCount = [
-    dateRange.from && dateRange.to ? 1 : 0,
-    minAmount || maxAmount ? 1 : 0,
-    vendorFilter ? 1 : 0
-  ].reduce((sum, val) => sum + val, 0);
+  const [activeTab, setActiveTab] = useState<string>('date');
   
   const handleApplyFilters = () => {
     const filters: any = {};
@@ -63,14 +53,14 @@ export default function FilterDropdown({ onApplyFilters }: FilterDropdownProps) 
     }
     
     if (vendorFilter) {
-      filters.vendors = [vendorFilter];
+      filters.vendors = vendorFilter.split(',').map(v => v.trim());
     }
     
     onApplyFilters(filters);
     setIsOpen(false);
   };
   
-  const handleClearFilters = () => {
+  const clearFilters = () => {
     setDateRange({});
     setMinAmount('');
     setMaxAmount('');
@@ -78,274 +68,271 @@ export default function FilterDropdown({ onApplyFilters }: FilterDropdownProps) 
     onApplyFilters({});
     setIsOpen(false);
   };
-
-  // Preset date ranges
-  const setDatePreset = (preset: 'today' | 'week' | 'month' | 'quarter' | 'year') => {
+  
+  const setLastMonth = () => {
     const today = new Date();
-    let from: Date = today;
+    const lastMonth = new Date(today);
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    lastMonth.setDate(1); // First day of last month
     
-    switch (preset) {
-      case 'today':
-        from = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        break;
-      case 'week':
-        from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
-        break;
-      case 'month':
-        from = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
-        break;
-      case 'quarter':
-        from = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate());
-        break;
-      case 'year':
-        from = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-        break;
-    }
+    const lastDayOfLastMonth = new Date(today);
+    lastDayOfLastMonth.setDate(0); // Last day of last month
     
-    setDateRange({ from, to: today });
+    setDateRange({
+      from: lastMonth,
+      to: lastDayOfLastMonth
+    });
   };
   
+  const setThisMonth = () => {
+    const today = new Date();
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    setDateRange({
+      from: firstDayOfMonth,
+      to: today
+    });
+  };
+  
+  const setLast30Days = () => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    setDateRange({
+      from: thirtyDaysAgo,
+      to: today
+    });
+  };
+  
+  const setLast90Days = () => {
+    const today = new Date();
+    const ninetyDaysAgo = new Date(today);
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    
+    setDateRange({
+      from: ninetyDaysAgo,
+      to: today
+    });
+  };
+  
+  const hasActiveFilters = !!(dateRange.from && dateRange.to) || !!minAmount || !!maxAmount || !!vendorFilter;
+  
   return (
-    <div className="relative">
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
-        <PopoverTrigger asChild>
-          <Button 
-            variant={hasActiveFilters ? "primary" : "outline"} 
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <FunnelIcon className="h-4 w-4" />
-            Filter
-            {hasActiveFilters && (
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-600 dark:bg-blue-800 dark:text-blue-100">
-                {activeFilterCount}
-              </span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent 
-          className="w-[350px] p-0 shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-lg z-50" 
-          align="end"
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <Button 
+          variant={hasActiveFilters ? "default" : "outline"} 
+          className={`flex items-center gap-2 border border-gray-300 dark:border-gray-700 ${hasActiveFilters ? 'bg-primary text-primary-foreground dark:bg-primary dark:text-primary-foreground' : 'bg-transparent hover:bg-gray-100 text-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'} transition-all duration-200`}
         >
-          <div className="border-b border-gray-200 dark:border-gray-700">
-            <div className="flex">
-              <button
-                onClick={() => setActiveTab('date')}
-                className={`flex-1 px-4 py-3 text-sm font-medium border-b-2 focus:outline-none ${
-                  activeTab === 'date'
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 dark:hover:border-gray-600'
-                }`}
+          <Filter className="h-4 w-4" />
+          <span>Filters</span>
+          {hasActiveFilters && (
+            <Badge 
+              variant="secondary" 
+              className="ml-2 bg-white/20 hover:bg-white/20 text-white border-none"
+            >
+              {Object.entries({
+                Date: dateRange.from && dateRange.to,
+                Amount: minAmount || maxAmount,
+                Vendor: vendorFilter
+              }).filter(([, value]) => !!value).length}
+            </Badge>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent 
+        className="w-[340px] p-0 border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-md shadow-lg transition-colors duration-200" 
+        align="end"
+      >
+        <Tabs 
+          defaultValue="date" 
+          value={activeTab} 
+          onValueChange={setActiveTab}
+          className="w-full"
+        >
+          <div className="border-b border-gray-200 dark:border-gray-800 transition-colors duration-200">
+            <TabsList className="grid grid-cols-3 bg-transparent">
+              <TabsTrigger 
+                value="date"
+                className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-none dark:data-[state=active]:bg-gray-800 dark:data-[state=active]:text-gray-100 text-gray-600 dark:text-gray-400 transition-colors duration-200"
               >
-                <div className="flex items-center justify-center">
-                  <CalendarIcon className="h-4 w-4 mr-2" />
-                  Date Range
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('amount')}
-                className={`flex-1 px-4 py-3 text-sm font-medium border-b-2 focus:outline-none ${
-                  activeTab === 'amount'
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 dark:hover:border-gray-600'
-                }`}
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                Date
+              </TabsTrigger>
+              <TabsTrigger 
+                value="amount"
+                className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-none dark:data-[state=active]:bg-gray-800 dark:data-[state=active]:text-gray-100 text-gray-600 dark:text-gray-400 transition-colors duration-200"
               >
-                <div className="flex items-center justify-center">
-                  <CurrencyDollarIcon className="h-4 w-4 mr-2" />
-                  Amount
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('vendor')}
-                className={`flex-1 px-4 py-3 text-sm font-medium border-b-2 focus:outline-none ${
-                  activeTab === 'vendor'
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 dark:hover:border-gray-600'
-                }`}
+                <DollarSign className="h-4 w-4 mr-2" />
+                Amount
+              </TabsTrigger>
+              <TabsTrigger 
+                value="vendor"
+                className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-none dark:data-[state=active]:bg-gray-800 dark:data-[state=active]:text-gray-100 text-gray-600 dark:text-gray-400 transition-colors duration-200"
               >
-                <div className="flex items-center justify-center">
-                  <BuildingStorefrontIcon className="h-4 w-4 mr-2" />
-                  Vendor
-                </div>
-              </button>
-            </div>
+                <Users className="h-4 w-4 mr-2" />
+                Vendor
+              </TabsTrigger>
+            </TabsList>
           </div>
-
+          
           <div className="p-4">
-            {activeTab === 'date' && (
+            <TabsContent value="date" className="mt-0">
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setDatePreset('today')}
-                    className="px-3 py-1.5 text-xs rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
+                <div className="flex flex-wrap gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={setThisMonth}
+                    className="text-xs border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors duration-200"
                   >
-                    Today
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDatePreset('week')}
-                    className="px-3 py-1.5 text-xs rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
+                    This Month
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={setLastMonth}
+                    className="text-xs border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors duration-200"
                   >
-                    Last 7 days
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDatePreset('month')}
-                    className="px-3 py-1.5 text-xs rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
+                    Last Month
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={setLast30Days}
+                    className="text-xs border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors duration-200"
                   >
-                    Last 30 days
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDatePreset('year')}
-                    className="px-3 py-1.5 text-xs rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
+                    Last 30 Days
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={setLast90Days}
+                    className="text-xs border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors duration-200"
                   >
-                    Last Year
-                  </button>
+                    Last 90 Days
+                  </Button>
                 </div>
                 
-                <div>
-                  <Calendar
-                    mode="range"
-                    selected={dateRange.from && dateRange.to ? { from: dateRange.from, to: dateRange.to } : undefined}
-                    onSelect={(newDateRange) => {
-                      if (newDateRange) {
-                        setDateRange(newDateRange as { from: Date; to?: Date });
-                      } else {
-                        setDateRange({});
-                      }
-                    }}
-                    initialFocus
-                    className="border rounded-md p-2"
-                  />
-                </div>
-                
-                {dateRange.from && dateRange.to && (
-                  <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 p-2 flex items-center justify-between">
-                    <span className="text-xs text-blue-700 dark:text-blue-300">
-                      {isValid(dateRange.from) && isValid(dateRange.to) && (
-                        <>
-                          {format(dateRange.from, 'PPP')} - {format(dateRange.to, 'PPP')}
-                        </>
-                      )}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label="Clear date range"
-                      onClick={() => setDateRange({})}
-                      className="text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100"
-                    >
-                      <XMarkIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {activeTab === 'amount' && (
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="min-amount" className="text-sm">Min Amount ($)</Label>
-                  <Input
-                    id="min-amount"
-                    type="number"
-                    placeholder="Min Amount"
-                    className="mt-1"
-                    value={minAmount}
-                    onChange={(e) => setMinAmount(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="max-amount" className="text-sm">Max Amount ($)</Label>
-                  <Input
-                    id="max-amount"
-                    type="number"
-                    placeholder="Max Amount"
-                    className="mt-1"
-                    value={maxAmount}
-                    onChange={(e) => setMaxAmount(e.target.value)}
-                  />
-                </div>
-                
-                {(minAmount || maxAmount) && (
-                  <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 p-2 flex items-center justify-between">
-                    <span className="text-xs text-blue-700 dark:text-blue-300">
-                      {minAmount && maxAmount 
-                        ? `$${minAmount} - $${maxAmount}`
-                        : minAmount 
-                          ? `Min: $${minAmount}` 
-                          : `Max: $${maxAmount}`}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label="Clear amount range"
-                      onClick={() => {
-                        setMinAmount('');
-                        setMaxAmount('');
-                      }}
-                      className="text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100"
-                    >
-                      <XMarkIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {activeTab === 'vendor' && (
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="vendor-filter" className="text-sm">Vendor Name</Label>
-                  <Input
-                    id="vendor-filter"
-                    type="text"
-                    placeholder="Search vendors"
-                    className="mt-1"
-                    value={vendorFilter}
-                    onChange={(e) => setVendorFilter(e.target.value)}
-                  />
-                  
-                  {vendorFilter && (
-                    <div className="mt-4 rounded-md bg-blue-50 dark:bg-blue-900/20 p-2 flex items-center justify-between">
-                      <span className="text-xs text-blue-700 dark:text-blue-300">
-                        Vendor: {vendorFilter}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label="Clear vendor filter"
-                        onClick={() => setVendorFilter('')}
-                        className="text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100"
-                      >
-                        <XMarkIcon className="h-4 w-4" />
-                      </button>
+                <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-colors duration-200">
+                  <div className="space-y-1">
+                    <Label htmlFor="date-range" className="text-gray-700 dark:text-gray-300 font-medium transition-colors duration-200">Date Range</Label>
+                    <div className="flex flex-col text-sm mt-2">
+                      <div className="grid gap-2">
+                        <div>
+                          {dateRange.from && (
+                            <div className="text-sm text-gray-500 dark:text-gray-400 transition-colors duration-200">
+                              From: <span className="font-medium text-gray-900 dark:text-gray-100 transition-colors duration-200">{format(dateRange.from, 'PP')}</span>
+                            </div>
+                          )}
+                          {dateRange.to && (
+                            <div className="text-sm text-gray-500 dark:text-gray-400 transition-colors duration-200">
+                              To: <span className="font-medium text-gray-900 dark:text-gray-100 transition-colors duration-200">{format(dateRange.to, 'PP')}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  )}
+                  </div>
+                  
+                  <div className="mt-2 flex justify-center">
+                    <Calendar
+                      mode="range"
+                      selected={dateRange}
+                      onSelect={setDateRange}
+                      className="border-0 p-0 bg-transparent"
+                      classNames={{
+                        day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+                        day_today: "bg-accent text-accent-foreground",
+                        day_range_middle: "bg-primary/20 dark:bg-primary/30 transition-colors duration-200",
+                        day_range_end: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+                        day_range_start: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+                        day: "text-gray-900 dark:text-gray-100 transition-colors duration-200",
+                        day_outside: "text-gray-400 dark:text-gray-600 opacity-50 transition-colors duration-200",
+                        day_disabled: "text-gray-400 dark:text-gray-600 opacity-50 transition-colors duration-200",
+                        caption: "text-gray-700 dark:text-gray-300 transition-colors duration-200",
+                        nav_button: "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 transition-colors duration-200",
+                        table: "border-collapse space-y-1",
+                        head_cell: "text-gray-500 dark:text-gray-400 font-medium text-xs transition-colors duration-200",
+                        cell: "p-0",
+                        root: "bg-transparent"
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
-            )}
+            </TabsContent>
             
-            <div className="flex justify-between pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+            <TabsContent value="amount" className="mt-0 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="min-amount" className="text-gray-700 dark:text-gray-300 font-medium transition-colors duration-200">
+                  Minimum Amount ($)
+                </Label>
+                <Input
+                  id="min-amount"
+                  type="number"
+                  placeholder="0.00"
+                  value={minAmount}
+                  onChange={(e) => setMinAmount(e.target.value)}
+                  className="border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="max-amount" className="text-gray-700 dark:text-gray-300 font-medium transition-colors duration-200">
+                  Maximum Amount ($)
+                </Label>
+                <Input
+                  id="max-amount"
+                  type="number"
+                  placeholder="No limit"
+                  value={maxAmount}
+                  onChange={(e) => setMaxAmount(e.target.value)}
+                  className="border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200"
+                />
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="vendor" className="mt-0 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="vendor-filter" className="text-gray-700 dark:text-gray-300 font-medium transition-colors duration-200">
+                  Vendor Names
+                </Label>
+                <Input
+                  id="vendor-filter"
+                  placeholder="Enter vendor names separated by commas"
+                  value={vendorFilter}
+                  onChange={(e) => setVendorFilter(e.target.value)}
+                  className="border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 transition-colors duration-200">
+                  Example: Supplier Co., Vendor Inc.
+                </p>
+              </div>
+            </TabsContent>
+          </div>
+          
+          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-800 transition-colors duration-200">
+            {hasActiveFilters && (
               <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleClearFilters}
-                className="flex items-center"
+                variant="ghost" 
+                onClick={clearFilters}
+                className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-gray-200/50 dark:hover:bg-gray-700/50 transition-colors duration-200"
               >
-                <XMarkIcon className="h-4 w-4 mr-1" />
-                Clear All
+                Clear
               </Button>
+            )}
+            <div className={hasActiveFilters ? 'ml-auto' : 'mx-auto'}>
               <Button 
-                size="sm" 
                 onClick={handleApplyFilters}
-                disabled={!(dateRange.from && dateRange.to) && !minAmount && !maxAmount && !vendorFilter}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground transition-colors duration-200"
               >
                 Apply Filters
               </Button>
             </div>
           </div>
-        </PopoverContent>
-      </Popover>
-    </div>
+        </Tabs>
+      </PopoverContent>
+    </Popover>
   );
 } 

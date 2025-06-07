@@ -364,9 +364,9 @@ export default function OverdueInvoicesPage() {
           <>
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
+                <TableHead>
                   <TableRow>
-                    <TableHead 
+                    <TableHeader 
                       onClick={() => handleSort('invoiceNumber')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -374,8 +374,8 @@ export default function OverdueInvoicesPage() {
                         Invoice #
                         <SortIndicator field="invoiceNumber" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('date')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -383,8 +383,8 @@ export default function OverdueInvoicesPage() {
                         Date
                         <SortIndicator field="date" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('customerName')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -392,8 +392,8 @@ export default function OverdueInvoicesPage() {
                         Customer
                         <SortIndicator field="customerName" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('totalAmount')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -401,8 +401,8 @@ export default function OverdueInvoicesPage() {
                         Amount
                         <SortIndicator field="totalAmount" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('dueDate')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -410,8 +410,8 @@ export default function OverdueInvoicesPage() {
                         Due Date
                         <SortIndicator field="dueDate" />
                       </div>
-                    </TableHead>
-                    <TableHead 
+                    </TableHeader>
+                    <TableHeader 
                       onClick={() => handleSort('daysOverdue')}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
@@ -419,10 +419,14 @@ export default function OverdueInvoicesPage() {
                         Days Overdue
                         <SortIndicator field="daysOverdue" />
                       </div>
-                    </TableHead>
-                    <TableHead>Actions</TableHead>
+                    </TableHeader>
+                    <TableHeader>
+                      <div className="flex items-center">
+                        Actions
+                      </div>
+                    </TableHeader>
                   </TableRow>
-                </TableHeader>
+                </TableHead>
                 <TableBody>
                   {paginatedInvoices.map((invoice) => {
                     const daysOverdue = invoice.daysOverdue || getDaysOverdue(invoice.dueDate);

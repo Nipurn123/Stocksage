@@ -110,7 +110,7 @@ const middlewareImplementation = checkEnvVars()
               );
             }
 
-            // If not a guest-accessible route, redirect to home
+            // If not a guest-accessible route, redirect to home instead of notFound()
             if (!isGuestAccessibleRoute(req)) {
               return Response.redirect(new URL('/', req.url));
             }

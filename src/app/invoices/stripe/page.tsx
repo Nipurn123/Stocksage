@@ -37,35 +37,35 @@ export default function StripeInvoicing() {
     // In a real app, this would be an API call to your backend
     // which would then use the Stripe API to fetch invoices
     setTimeout(() => {
-      setInvoices(generateMockInvoices());
+      setInvoices(getMockStripeInvoices());
       setIsLoading(false);
       setIsConnected(true);
     }, 1500);
   }, []);
 
-  // Generate mock invoices for demonstration
-  const generateMockInvoices = (): StripeInvoice[] => {
+  // Mock data for stripe invoices
+  const getMockStripeInvoices = () => {
     const statuses: ('draft' | 'open' | 'paid' | 'uncollectible' | 'void')[] = ['draft', 'open', 'paid', 'paid', 'paid', 'void'];
     const customers = [
-      { id: 'cus_123', name: 'Ethnic Retail Store', email: 'accounts@ethnicretail.com' },
-      { id: 'cus_456', name: 'Luxe Boutique', email: 'finance@luxeboutique.com' },
-      { id: 'cus_789', name: 'Handloom Cooperative', email: 'billing@handloomcoop.org' },
-      { id: 'cus_101', name: 'Fashion Exports Ltd', email: 'accounts@fashionexports.com' },
-      { id: 'cus_112', name: 'Craft Bazaar', email: 'payments@craftbazaar.in' }
+      { id: 'cus_ERS123', name: 'Ethnic Retail Store', email: 'accounts@ethnicretail.com' },
+      { id: 'cus_LB456', name: 'Luxe Boutique', email: 'finance@luxeboutique.com' },
+      { id: 'cus_HE789', name: 'Handicraft Emporium', email: 'purchasing@handicraftemporium.com' },
+      { id: 'cus_CA101', name: 'Cultural Artifacts', email: 'procurement@culturalartifacts.in' },
+      { id: 'cus_AO112', name: 'Artisan Outlet', email: 'orders@artisanoutlet.com' }
     ];
     
     const subscriptions = [
-      'Premium Textile Catalog Access',
-      'Monthly Fabric Supply',
-      'Quarterly Design Consultation',
-      'Annual Trade Show Partnership', 
+      'WeaveMitra Premium Collection Access',
+      'Monthly Handloom Supply',
+      'Quarterly Textile Consultation',
+      'Annual Handloom Exhibition Partnership', 
       null
     ];
     
     return Array.from({ length: 12 }, (_, i) => {
       const customer = customers[Math.floor(Math.random() * customers.length)];
       const status = statuses[Math.floor(Math.random() * statuses.length)];
-      const amount = Math.floor(Math.random() * 100000) + 5000; // 5000-105000
+      const amount = Math.floor(Math.random() * 50000) + 15000; // 15000-65000 INR
       const createdDate = Date.now() - Math.floor(Math.random() * 30 * 24 * 60 * 60 * 1000);
       const subscription = subscriptions[Math.floor(Math.random() * subscriptions.length)];
       
@@ -75,7 +75,7 @@ export default function StripeInvoicing() {
         status,
         amount_due: status === 'paid' ? 0 : amount,
         amount_paid: status === 'paid' ? amount : 0,
-        description: subscription || 'One-time textile order',
+        description: subscription || 'Handloom textile order - WeaveMitra',
         currency: 'inr',
         created: createdDate,
         due_date: createdDate + (15 * 24 * 60 * 60 * 1000), // 15 days after creation
@@ -224,7 +224,7 @@ export default function StripeInvoicing() {
                   onClick={() => {
                     setIsLoading(true);
                     setTimeout(() => {
-                      setInvoices(generateMockInvoices());
+                      setInvoices(getMockStripeInvoices());
                       setIsLoading(false);
                     }, 1000);
                   }}

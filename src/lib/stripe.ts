@@ -14,6 +14,13 @@ export interface CreateInvoiceParams {
     address?: string;
     phone?: string;
   };
+  company?: {
+    name: string;
+    address?: string;
+    email?: string;
+    phone?: string;
+    logo?: string;
+  };
   items: {
     description: string;
     quantity: number;
@@ -91,7 +98,7 @@ export const stripeService = {
     invoiceNumber: string;
     pdfUrl: string | null;
   }> {
-    const { customer, items, dueDate, notes, customFields } = params;
+    const { customer, items, dueDate, notes, customFields, company } = params;
     
     // Step 1: Create or get customer
     const { stripeCustomerId, dbCustomerId } = await this.getOrCreateCustomer(customer);
@@ -149,12 +156,12 @@ export const stripeService = {
         invoiceNumber: finalizedInvoice.number || `INV-${Date.now()}`,
         date: new Date().toISOString().split('T')[0],
         dueDate: dueDate ? dueDate.toISOString().split('T')[0] : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        vendorName: 'Your Company Name', // Replace with actual company name
-        vendorAddress: 'Your Company Address', // Replace with actual address
+        vendorName: company?.name || 'Your Company Name',
+        vendorAddress: company?.address || 'Your Company Address',
         customerName: customer.name,
         customerAddress: customer.address || '',
-        vendorEmail: 'your-email@example.com', // Replace with actual email
-        vendorPhone: '123-456-7890', // Replace with actual phone
+        vendorEmail: company?.email || 'your-email@example.com',
+        vendorPhone: company?.phone || '123-456-7890',
         totalAmount,
         taxAmount: finalizedInvoice.tax ? finalizedInvoice.tax / 100 : 0, // Convert from cents
         paymentTerms: `Due in ${dueDate ? Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 30} days`,

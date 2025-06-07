@@ -58,15 +58,14 @@ function Popover({ children, open, onOpenChange }: PopoverProps) {
     } else {
       document.removeEventListener('mousedown', handleOutsideClick);
     }
+
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
     };
   }, [isOpen]);
 
-  const value = { open: isOpen, setOpen: setIsOpen, triggerRef };
-
   return (
-    <PopoverContext.Provider value={value}>
+    <PopoverContext.Provider value={{ open: isOpen, setOpen: setIsOpen, triggerRef }}>
       {children}
     </PopoverContext.Provider>
   );
@@ -77,24 +76,13 @@ interface PopoverTriggerProps {
   asChild?: boolean;
 }
 
-function PopoverTrigger({ children, asChild = false }: PopoverTriggerProps) {
+function PopoverTrigger({ children }: PopoverTriggerProps) {
   const { open, setOpen, triggerRef } = usePopover();
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     setOpen(!open);
   };
-
-  if (asChild) {
-    return React.cloneElement(children, {
-      ref: triggerRef,
-      onClick: (e: React.MouseEvent) => {
-        handleClick(e);
-        children.props.onClick?.(e);
-      },
-      'aria-expanded': open,
-    });
-  }
 
   return React.cloneElement(children, {
     ref: triggerRef,
@@ -125,7 +113,7 @@ function PopoverContent({
       const triggerRect = triggerRef.current.getBoundingClientRect();
       const contentRect = contentRef.current.getBoundingClientRect();
       
-      let top = triggerRect.bottom + sideOffset;
+      const calculatedTop = triggerRect.bottom + sideOffset;
       let left = triggerRect.left + triggerRect.width / 2 - contentRect.width / 2;
       
       // Handle alignment
@@ -141,7 +129,7 @@ function PopoverContent({
         left = window.innerWidth - contentRect.width - 10;
       }
       
-      setPosition({ top, left });
+      setPosition({ top: calculatedTop, left });
     }
   }, [open, sideOffset, align]);
 
@@ -150,7 +138,7 @@ function PopoverContent({
   return (
     <div
       ref={contentRef}
-      className={`absolute z-50 min-w-[8rem] rounded-md border bg-background p-4 shadow-md outline-none animate-in fade-in-80 ${className}`}
+      className={`absolute z-50 min-w-[8rem] rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-md outline-none transition-colors duration-200 animate-in fade-in-80 ${className}`}
       style={{
         top: `${position.top}px`,
         left: `${position.left}px`,
@@ -158,7 +146,9 @@ function PopoverContent({
       }}
       data-popover-content="true"
     >
-      {children}
+      <div className="text-gray-900 dark:text-gray-100 transition-colors duration-200">
+        {children}
+      </div>
     </div>
   );
 }
